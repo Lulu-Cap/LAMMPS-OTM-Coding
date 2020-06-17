@@ -1,6 +1,7 @@
+*.tar
 *.pdf
 *.jpg
 *.jpeg
 *.mp4
 *.png
-LAMMPS/
+lammps-3Mar20/

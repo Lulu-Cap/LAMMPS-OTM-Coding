@@ -1,0 +1,117 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{float}
+\usepackage{graphicx}
+\usepackage{color}
+
+%\renewcommand\thesection{\Alph{section}}
+%\renewcommand\thesubsection{\thesection.\arabic{subsection}}
+\newcommand{\tvec}[2]{ \begin{bmatrix} #1 \\ #2 \end{bmatrix} }
+
+\begin{document}
+
+	\title{Optimal Transportation Meshfree\\LAMMPS Userguide}
+	\author{Lucas Caparini\\University of British Columbia}
+	\date{May 30, 2020\\Updated \today}
+	\maketitle
+	
+	\tableofcontents
+	\newpage
+	
+	
+	
+	
+	
+	
+	\section{Background}
+	
+	
+	
+	
+	
+	
+	
+	\section{Formulation of OTM}
+	Refer to Habbal, Li, and Ortiz's many papers on the subject. 
+	
+	Expand this section later.
+	
+	
+	\section{Installation Instructions} 
+	Refer to details in README. Currently, the package requires a few steps:
+	\begin{enumerate}
+	\item Follow the README instructions in /lib/otm/ for details of downloading and linking the Eigen library, which is currently required for running USER-OTM
+	\item Replace files in /src with the files included in Core-Source/ of the OTM package. Add the folder USER-OTM to /src
+	\item install USER-OTM with the commands "make yes-user-otm"
+	\item make lammps normally ("make <opt>")
+	\end{enumerate}
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	\section{Using OTM}
+		
+		\subsection{Classes}
+		
+		
+		
+		
+		\subsection{Pairstyles}
+		
+		
+		\subsection{Material Models}
+		
+		
+		
+		\subsection{Boundary Conditions}
+		
+		
+		\subsection{Access to Particle Quantities}
+		
+		
+		\subsection{Fixes}
+
+
+
+
+
+	
+	
+	
+	
+	
+	
+	\section{Examples}
+	
+		\subsection{Rotating Fluid}
+		
+		
+		
+		\subsection{Cantilever Beam}
+		
+		
+		
+		
+		
+		
+		\subsection{High Velocity Impact}
+
+
+
+
+
+
+
+
+
+
+\end{document}
+

@@ -1,0 +1,6 @@
+<map id="Eigen::Ref&lt; SparseMatrixType, Options &gt;" name="Eigen::Ref&lt; SparseMatrixType, Options &gt;">
+<area shape="rect" id="node1" title="A sparse matrix expression referencing an existing sparse expression." alt="" coords="28,1027,201,1119"/>
+<area shape="rect" id="node2" href="$classEigen_1_1SparseMapBase_3_01Derived_00_01WriteAccessors_01_4.html" title="Common base class for writable Map and Ref instance of sparse matrix and vector." alt="" coords="19,769,211,979"/>
+<area shape="rect" id="node3" href="$classEigen_1_1SparseMapBase_3_01Derived_00_01ReadOnlyAccessors_01_4.html" title="Common base class for Map and Ref instance of sparse matrix and vector." alt="" coords="5,336,224,721"/>
+<area shape="rect" id="node4" href="$classEigen_1_1SparseCompressedBase.html" title=" " alt="" coords="11,5,219,288"/>
+</map>

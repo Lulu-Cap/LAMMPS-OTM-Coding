@@ -37,29 +37,30 @@ done
 if (test $1 = 1) then
 
   if (test -e ../Makefile.package) then
-    sed -i -e 's/[^ \t]*smd[^ \t]* //g' ../Makefile.package
-    sed -i -e 's|^PKG_INC =[ \t]*|&-I..\/..\/lib\/smd/includelink |' ../Makefile.package
-    sed -i -e 's|^PKG_SYSINC =[ \t]*|&$(user-smd_SYSINC) |' ../Makefile.package
-    sed -i -e 's|^PKG_SYSLIB =[ \t]*|&$(user-smd_SYSLIB) |' ../Makefile.package
-    sed -i -e 's|^PKG_SYSPATH =[ \t]*|&$(user-smd_SYSPATH) |' ../Makefile.package
+    sed -i -e 's/[^ \t]*otm[^ \t]* //g' ../Makefile.package
+    sed -i -e 's|^PKG_INC =[ \t]*|&-I..\/..\/lib\/otm/includelink |' ../Makefile.package
+    sed -i -e 's|^PKG_SYSINC =[ \t]*|&$(user-otm_SYSINC) |' ../Makefile.package
+    sed -i -e 's|^PKG_SYSLIB =[ \t]*|&$(user-otm_SYSLIB) |' ../Makefile.package
+    sed -i -e 's|^PKG_SYSPATH =[ \t]*|&$(user-otm_SYSPATH) |' ../Makefile.package
   fi
 
   if (test -e ../Makefile.package.settings) then
-    sed -i -e '/^include.*smd.*$/d' ../Makefile.package.settings
+    sed -i -e '/^include.*otm.*$/d' ../Makefile.package.settings
     # multiline form needed for BSD sed on Macs
     sed -i -e '4 i \
-include ..\/..\/lib\/smd\/Makefile.lammps
+include ..\/..\/lib\/otm\/Makefile.lammps
 ' ../Makefile.package.settings
+
   fi
 
 elif (test $1 = 0) then
 
   if (test -e ../Makefile.package) then
-    sed -i -e 's/[^ \t]*smd[^ \t]* //g' ../Makefile.package
+    sed -i -e 's/[^ \t]*otm[^ \t]* //g' ../Makefile.package
   fi
 
   if (test -e ../Makefile.package.settings) then
-    sed -i -e '/^include.*smd.*$/d' ../Makefile.package.settings
+    sed -i -e '/^include.*otm.*$/d' ../Makefile.package.settings
   fi
 
 fi

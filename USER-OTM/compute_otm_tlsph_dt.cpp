@@ -1,11 +1,11 @@
 /* ----------------------------------------------------------------------
  *
- *                    *** Smooth Mach Dynamics ***
+ *                *** Optimal Transportation Meshfree ***
  *
- * This file is part of the USER-SMD package for LAMMPS.
- * Copyright (2014) Georg C. Ganzenmueller, georg.ganzenmueller@emi.fhg.de
- * Fraunhofer Ernst-Mach Institute for High-Speed Dynamics, EMI,
- * Eckerstrasse 4, D-79104 Freiburg i.Br, Germany.
+ * This file is part of the USER-OTM package for LAMMPS.
+ * Copyright (2020) Lucas Caparini, lucas.caparini@alumni.ubc.ca
+ * Department of Mechanical Engineering, University of British Columbia,
+ * British Columbia, Canada
  *
  * ----------------------------------------------------------------------- */
 

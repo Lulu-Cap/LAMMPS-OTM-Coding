@@ -49,6 +49,7 @@
 #include "pair_nm_cut_coul_cut.h"
 #include "pair_nm_cut_coul_long.h"
 #include "pair_otm_hertz.h"
+#include "pair_otm_tlsph.h"
 #include "pair_polymorphic.h"
 #include "pair_rebo.h"
 #include "pair_smd_hertz.h"

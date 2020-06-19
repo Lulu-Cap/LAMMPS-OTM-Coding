@@ -1,11 +1,11 @@
 /* ----------------------------------------------------------------------
  *
- *                    *** Smooth Mach Dynamics ***
+ *                *** Optimal Transportation Meshfree ***
  *
- * This file is part of the USER-SMD package for LAMMPS.
- * Copyright (2014) Georg C. Ganzenmueller, georg.ganzenmueller@emi.fhg.de
- * Fraunhofer Ernst-Mach Institute for High-Speed Dynamics, EMI,
- * Eckerstrasse 4, D-79104 Freiburg i.Br, Germany.
+ * This file is part of the USER-OTM package for LAMMPS.
+ * Copyright (2020) Lucas Caparini, lucas.caparini@alumni.ubc.ca
+ * Department of Mechanical Engineering, University of British Columbia,
+ * British Columbia, Canada
  *
  * ----------------------------------------------------------------------- */
 
@@ -203,7 +203,7 @@ void PairHertz::compute(int eflag, int vflag) {
 //      double stable_time_increment_all = 0.0;
 //      MPI_Allreduce(&stable_time_increment, &stable_time_increment_all, 1, MPI_DOUBLE, MPI_MIN, world);
 //      if (comm->me == 0) {
-//              printf("stable time step for pair smd/hertz is %f\n", stable_time_increment_all);
+//              printf("stable time step for pair otm/hertz is %f\n", stable_time_increment_all);
 //      }
 }
 
@@ -242,7 +242,7 @@ void PairHertz::settings(int narg, char **arg) {
         scale = force->numeric(FLERR, arg[0]);
         if (comm->me == 0) {
                 printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
-                printf("SMD/HERTZ CONTACT SETTINGS:\n");
+                printf("OTM/HERTZ CONTACT SETTINGS:\n");
                 printf("... effective contact radius is scaled by %f\n", scale);
                 printf(">>========>>========>>========>>========>>========>>========>>========>>========\n");
         }
@@ -310,7 +310,7 @@ double PairHertz::init_one(int i, int j) {
         cutoff = MAX(cutoff, maxrad_dynamic[i] + maxrad_frozen[j]);
 
         if (comm->me == 0) {
-                printf("cutoff for pair smd/hertz = %f\n", cutoff);
+                printf("cutoff for pair otm/hertz = %f\n", cutoff);
         }
         return cutoff;
 }
@@ -325,7 +325,7 @@ void PairHertz::init_style() {
         // error checks
 
         if (!atom->contact_radius_flag)
-                error->all(FLERR, "Pair style smd/hertz requires atom style with contact_radius");
+                error->all(FLERR, "Pair style otm/hertz requires atom style with contact_radius");
 
         int irequest = neighbor->request(this);
         neighbor->requests[irequest]->size = 1;
@@ -369,7 +369,7 @@ double PairHertz::memory_usage() {
 
 void *PairHertz::extract(const char *str, int &/*i*/) {
         //printf("in PairTriSurf::extract\n");
-        if (strcmp(str, "smd/hertz/stable_time_increment_ptr") == 0) {
+        if (strcmp(str, "otm/hertz/stable_time_increment_ptr") == 0) {
                 return (void *) &stable_time_increment;
         }
 

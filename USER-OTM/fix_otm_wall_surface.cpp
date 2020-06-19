@@ -1,3 +1,14 @@
+ /* ----------------------------------------------------------------------
+ *
+ *                *** Optimal Transportation Meshfree ***
+ *
+ * This file is part of the USER-OTM package for LAMMPS.
+ * Copyright (2020) Lucas Caparini, lucas.caparini@alumni.ubc.ca
+ * Department of Mechanical Engineering, University of British Columbia,
+ * British Columbia, Canada
+ *
+ * ----------------------------------------------------------------------- */
+
 /* ----------------------------------------------------------------------
  LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
  http://lammps.sandia.gov, Sandia National Laboratories

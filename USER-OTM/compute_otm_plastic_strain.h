@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/plastic/strain,ComputeSMDPlasticStrain)
+ComputeStyle(smd/plastic/strain,ComputeSMDPlasticStrain)
 
 #else
 

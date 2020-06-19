@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/ulsph/effm,ComputeSMD_Ulsph_Effm)
+ComputeStyle(smd/ulsph/effm,ComputeSMD_Ulsph_Effm)
 
 #else
 

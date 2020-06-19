@@ -24,7 +24,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(otm/wall_surface,FixSMDWallSurface)
+FixStyle(smd/wall_surface,FixSMDWallSurface)
 
 #else
 

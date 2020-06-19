@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/tlsph/strain,ComputeSMDTLSPHstrain)
+ComputeStyle(smd/tlsph/strain,ComputeSMDTLSPHstrain)
 
 #else
 

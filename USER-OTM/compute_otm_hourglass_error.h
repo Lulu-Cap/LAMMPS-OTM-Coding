@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/hourglass/error,ComputeSMDHourglassError)
+ComputeStyle(smd/hourglass/error,ComputeSMDHourglassError)
 
 #else
 

@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/tlsph/defgrad,ComputeSMDTLSPHDefgrad)
+ComputeStyle(smd/tlsph/defgrad,ComputeSMDTLSPHDefgrad)
 
 #else
 

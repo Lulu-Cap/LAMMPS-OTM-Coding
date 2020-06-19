@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/damage,ComputeSMDDamage)
+ComputeStyle(smd/damage,ComputeSMDDamage)
 
 #else
 

@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/tlsph/dt,ComputeSMDTlsphDt)
+ComputeStyle(smd/tlsph/dt,ComputeSMDTlsphDt)
 
 #else
 

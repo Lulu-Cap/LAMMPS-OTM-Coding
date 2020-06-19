@@ -24,7 +24,7 @@
 
 #ifdef PAIR_CLASS
 
-PairStyle(otm/ulsph,PairULSPH)
+PairStyle(smd/ulsph,PairULSPH)
 
 #else
 

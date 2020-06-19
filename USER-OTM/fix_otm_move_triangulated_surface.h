@@ -24,7 +24,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(otm/move_tri_surf,FixSMDMoveTriSurf)
+FixStyle(smd/move_tri_surf,FixSMDMoveTriSurf)
 
 #else
 

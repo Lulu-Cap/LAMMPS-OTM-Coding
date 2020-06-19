@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/rho,ComputeSMDRho)
+ComputeStyle(smd/rho,ComputeSMDRho)
 
 #else
 

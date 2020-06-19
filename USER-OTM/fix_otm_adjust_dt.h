@@ -24,7 +24,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(otm/adjust_dt,FixSMDTlsphDtReset)
+FixStyle(smd/adjust_dt,FixSMDTlsphDtReset)
 
 #else
 

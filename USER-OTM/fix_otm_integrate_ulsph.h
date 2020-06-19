@@ -25,7 +25,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(otm/integrate_ulsph,FixSMDIntegrateUlsph)
+FixStyle(smd/integrate_ulsph,FixSMDIntegrateUlsph)
 
 #else
 

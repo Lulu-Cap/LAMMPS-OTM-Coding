@@ -24,7 +24,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(otm/setvel,FixSMDSetVel)
+FixStyle(smd/setvel,FixSMDSetVel)
 
 #else
 

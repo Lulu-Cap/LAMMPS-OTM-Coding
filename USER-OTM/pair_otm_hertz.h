@@ -25,7 +25,7 @@
 
 #ifdef PAIR_CLASS
 
-PairStyle(otm/hertz,PairHertz)
+PairStyle(smd/hertz,PairHertz)
 
 #else
 

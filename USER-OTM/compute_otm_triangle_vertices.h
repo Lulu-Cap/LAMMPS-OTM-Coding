@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/triangle/vertices,ComputeSMDTriangleVertices)
+ComputeStyle(smd/triangle/vertices,ComputeSMDTriangleVertices)
 
 #else
 

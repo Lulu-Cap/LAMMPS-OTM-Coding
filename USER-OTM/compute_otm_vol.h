@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/vol,ComputeSMDVol)
+ComputeStyle(smd/vol,ComputeSMDVol)
 
 #else
 

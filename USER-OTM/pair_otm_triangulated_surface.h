@@ -25,7 +25,7 @@
 
 #ifdef PAIR_CLASS
 
-PairStyle(otm/tri_surface,PairTriSurf)
+PairStyle(smd/tri_surface,PairTriSurf)
 
 #else
 

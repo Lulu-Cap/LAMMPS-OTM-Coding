@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/internal/energy,ComputeSMDInternalEnergy)
+ComputeStyle(smd/internal/energy,ComputeSMDInternalEnergy)
 
 #else
 

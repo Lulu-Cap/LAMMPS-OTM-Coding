@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(otm/contact/radius,ComputeSMDContactRadius)
+ComputeStyle(smd/contact/radius,ComputeSMDContactRadius)
 
 #else
 

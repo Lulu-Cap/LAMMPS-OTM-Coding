@@ -41,31 +41,40 @@ variable        eosC6 equal 0.0
 ####################################################################################################
 dimension       2
 units		si
-boundary        sm sm p # simulation box boundaries
-atom_style      otm
-atom_modify	map array
-comm_modify     vel yes
+boundary        sm sm p # simulation box boundaries (shrink-wrapped minimal, ditto, periodic)
+atom_style      otm # was smd
+atom_modify	map array # creates a map for finding atom ids w/an array (vs. hash table)
+
+#comm_modify cutoff ${Rcut} # communicates between atoms w/in cutoff radius
+comm_modify     vel yes # I don't think this actually matters for OTM...
+
+#neigh_modify exclude group nd nd  # nodes don't have neighbour lists with themselves
+#neigh_modify exclude group mp mp  # mps don't need neighbour lists with themselves
+
 neigh_modify    every 10 delay 0 check yes # re-build neighbor list every 10 steps
 newton          off
 
 ####################################################################################################
 # CREATE INITIAL GEOMETRY
 ####################################################################################################
+
+
 variable 	l0 equal 1.0 # lattice spacing for creating particles
-lattice 	sq ${l0}
-lattice 	sq 1
+lattice 	sq ${l0} # Square lattice with above spacing
+lattice 	sq 1 
 Lattice spacing in x,y,z = 1 1 1
 region 		box block -10 10 -10 10 -0.1 0.1 units box
-create_box 	1 box
+create_box 	1 box # (# of atom types) (region-ID)
 Created orthogonal box = (-10 -10 -0.1) to (10 10 0.1)
   1 by 1 by 1 MPI processor grid
 create_atoms 	1 box
 Created 400 atoms
-  create_atoms CPU = 0.000667095 secs
+  create_atoms CPU = 0.000794172 secs
 group		tlsph type 1
 400 atoms in group tlsph
 
-
+# All the above should be replaced by an input file with two sets of particles: nodes and material points
+#read_data
 ####################################################################################################
 # DISCRETIZATION PARAMETERS
 ####################################################################################################
@@ -189,7 +198,7 @@ Neighbor list info ...
 TLSPH neighbors:
   max # of neighbors for a single particle = 12
   average # of neighbors/particle in group tlsph = 11.01
-Per MPI rank memory allocation (min/avg/max) = 29.97 | 29.97 | 29.97 Mbytes
+Per MPI rank memory allocation (min/avg/max) = 36.34 | 36.34 | 36.34 Mbytes
 Step Dt f_dtfix Time v_strain 
        0        1e-16            0            0            0 
      100  0.020705726    2.0498925    2.0705726 4.436443e-05 
@@ -442,19 +451,19 @@ Step Dt f_dtfix Time v_strain
    24800  0.019115607    481.66417    474.06706   0.80639967 
    24900  0.018358997    483.54616    457.13903   0.81032458 
    25000  0.018261665    485.34821    456.54163   0.81407375 
-Loop time of 25.6215 on 1 procs for 25000 steps with 400 atoms
+Loop time of 25.3805 on 1 procs for 25000 steps with 400 atoms
 
-99.1% CPU use with 1 MPI tasks x no OpenMP threads
+98.9% CPU use with 1 MPI tasks x no OpenMP threads
 
 MPI task timing breakdown:
 Section |  min time  |  avg time  |  max time  |%varavg| %total
 ---------------------------------------------------------------
-Pair    | 24.392     | 24.392     | 24.392     |   0.0 | 95.20
-Neigh   | 0.0017416  | 0.0017416  | 0.0017416  |   0.0 |  0.01
-Comm    | 0.0022128  | 0.0022128  | 0.0022128  |   0.0 |  0.01
-Output  | 0.71308    | 0.71308    | 0.71308    |   0.0 |  2.78
-Modify  | 0.49097    | 0.49097    | 0.49097    |   0.0 |  1.92
-Other   |            | 0.02102    |            |       |  0.08
+Pair    | 24.103     | 24.103     | 24.103     |   0.0 | 94.97
+Neigh   | 0.0016329  | 0.0016329  | 0.0016329  |   0.0 |  0.01
+Comm    | 0.0025947  | 0.0025947  | 0.0025947  |   0.0 |  0.01
+Output  | 0.74944    | 0.74944    | 0.74944    |   0.0 |  2.95
+Modify  | 0.50304    | 0.50304    | 0.50304    |   0.0 |  1.98
+Other   |            | 0.02047    |            |       |  0.08
 
 Nlocal:    400 ave 400 max 400 min
 Histogram: 1 0 0 0 0 0 0 0 0 0

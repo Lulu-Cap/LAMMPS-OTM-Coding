@@ -23,7 +23,7 @@
  See the README file in the top-level LAMMPS directory.
  ------------------------------------------------------------------------- */
 
-#include "fix_otm_setvel.h"
+#include "fix_otm_lme_shape.h"
 #include <mpi.h>
 #include <cstring>
 #include "atom.h"

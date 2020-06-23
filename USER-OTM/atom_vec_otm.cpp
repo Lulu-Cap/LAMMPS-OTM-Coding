@@ -38,6 +38,8 @@ using namespace LAMMPS_NS;
 #define NMAT_FULL 9
 #define NMAT_SYMM 6
 
+#define NEIGH_MAX 50 // Temporary until I can make this smoother (ideally only uses as much as needed, not a fixed amount)
+
 /* ---------------------------------------------------------------------- */
 
 AtomVecOTM::AtomVecOTM(LAMMPS *lmp) :
@@ -71,6 +73,9 @@ AtomVecOTM::AtomVecOTM(LAMMPS *lmp) :
         forceclearflag = 1;
 
         atom->smd_flag = 1;
+
+        // USER-OTM
+        atom->p_flag = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -122,6 +127,9 @@ void AtomVecOTM::grow(int n) {
         eff_plastic_strain_rate = memory->grow(atom->eff_plastic_strain_rate, nmax, "atom:eff_plastic_strain_rate");
         damage = memory->grow(atom->damage, nmax, "atom:damage");
 
+        // USER-OTM
+        p = memory->grow(atom->p, nmax, NEIGH_MAX, "atom:p");
+
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
                         modify->fix[atom->extra_grow[iextra]]->grow_arrays(nmax);
@@ -154,6 +162,9 @@ void AtomVecOTM::grow_reset() {
         eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
         damage = atom->damage;
         vest = atom->vest;
+
+        // USER-OTM
+        p = atom->p;
 }
 
 /* ----------------------------------------------------------------------
@@ -196,6 +207,11 @@ void AtomVecOTM::copy(int i, int j, int delflag) {
         }
 
         damage[j] = damage[i];
+
+        // USER-OTM
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                p[j][k] = p[i][k];
+        }
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -758,6 +774,11 @@ int AtomVecOTM::pack_exchange(int i, double *buf) {
 
         buf[m++] = damage[i];
 
+        // USER-OTM
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                buf[m++] = p[i][k]; // 39 + NEIGH_MAX
+        }
+
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
                         m += modify->fix[atom->extra_grow[iextra]]->pack_exchange(i, &buf[m]);
@@ -811,6 +832,11 @@ int AtomVecOTM::unpack_exchange(double *buf) {
         vest[nlocal][2] = buf[m++]; // 39
 
         damage[nlocal] = buf[m++]; //40
+
+        // USER-OTM
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                p[nlocal][k] = buf[m++];
+        } // NEIGH_MAX + 40
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -883,6 +909,11 @@ int AtomVecOTM::pack_restart(int i, double *buf) {
 
         buf[m++] = damage[i]; // 41
 
+        // USER-OTM
+        for (int k =0; k < NEIGH_MAX; k++) {
+                buf[m++] = p[i][k]; 
+        } // 41 + NEIGH_MAX
+
         if (atom->nextra_restart)
                 for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
                         m += modify->fix[atom->extra_restart[iextra]]->pack_restart(i, &buf[m]);
@@ -941,6 +972,11 @@ int AtomVecOTM::unpack_restart(double *buf) {
         vest[nlocal][2] = buf[m++]; // 40
 
         damage[nlocal] = buf[m++]; //41
+
+        // USER-OTM
+        for (int k=0; k < NEIGH_MAX; k++) {
+                p[nlocal][k] = buf[m++];
+        } // 41 + NEIGH_MAX
 
         //printf("nlocal in restart is %d\n", nlocal);
 
@@ -1009,6 +1045,11 @@ void AtomVecOTM::create_atom(int itype, double *coord) {
         }
 
         damage[nlocal] = 0.0;
+
+        // USER-OTM
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
+        }
 
         atom->nlocal++;
 }
@@ -1085,6 +1126,11 @@ void AtomVecOTM::data_atom(double *coord, imageint imagetmp, char **values) {
         smd_data_9[nlocal][0] = 1.0; // xx
         smd_data_9[nlocal][4] = 1.0; // yy
         smd_data_9[nlocal][8] = 1.0; // zz
+
+        // USER-OTM
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
+        }
 
         atom->nlocal++;
 }
@@ -1273,6 +1319,10 @@ bigint AtomVecOTM::memory_usage() {
 
         if (atom->memcheck("damage"))
                 bytes += memory->usage(damage, nmax);
+        
+        // USER-OTM
+        if (atom->memcheck("p"))
+                bytes += memory->usage(p, nmax, NEIGH_MAX);
 
         return bytes;
 }

@@ -84,8 +84,8 @@ class AtomVecOTM : public AtomVec {
   tagint *tag;
   int *type,*mask;
   imageint *image;
-  double **x,**v,**f;
-  double *radius,*rmass;
+  double **x,**v,**f; // position, velocity, force vectors
+  double *radius,*rmass; 
 
   tagint *molecule;
   double *vfrac,**x0,*contact_radius, **smd_data_9, *e, *de, **vest;
@@ -94,7 +94,8 @@ class AtomVecOTM : public AtomVec {
   double *damage;
   double *eff_plastic_strain_rate;
 
-
+   // USER-OTM
+   double **p; // Shape function evaluations
 };
 
 }

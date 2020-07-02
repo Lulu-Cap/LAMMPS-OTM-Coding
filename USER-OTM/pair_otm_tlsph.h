@@ -99,7 +99,7 @@ protected:
         double dtCFL;
         double dtRelative; // relative velocity of two particles, divided by sound speed
         int updateFlag;
-        double update_threshold; // updateFlage is set to one if the relative displacement of a pair exceeds update_threshold
+        double update_threshold; // updateFlag is set to one if the relative displacement of a pair exceeds update_threshold
         double cut_comm;
 
         enum {

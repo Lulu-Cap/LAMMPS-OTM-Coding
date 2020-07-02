@@ -65,8 +65,8 @@ public:
 
 protected:
         int updateFlag; // flag to update reference configuration
-        int nmax;
-        int maxpartner;
+        int nmax; // Maximum number of owned+ghost atoms in arrays on this proc
+        int maxpartner; // The maximum partners of any atom on this proc
         int *npartner;                // # of touching partners of each atom
         tagint **partner;             // global atom IDs for the partners
         float **wfd_list, **wf_list, **energy_per_bond;

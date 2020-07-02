@@ -56,15 +56,16 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
         if (atom->map_style == 0)
                 error->all(FLERR, "Pair tlsph with partner list requires an atom map, see atom_modify");
 
-        maxpartner = 1;
-        npartner = NULL;
-        partner = NULL;
-        wfd_list = NULL;
-        wf_list = NULL;
+        maxpartner = 1; // Initialize one partner
+        npartner = NULL; // Vector containing # partners of each atom
+        partner = NULL; // Array containing global atom IDs of partners
+        wfd_list = NULL; // Array of derivatives of shape functions at each partner
+        wf_list = NULL; // Array of shape functions at each partner
         energy_per_bond = NULL;
         degradation_ij = NULL;
-        grow_arrays(atom->nmax);
-        atom->add_callback(0);
+        grow_arrays(atom->nmax); // grow arrays to the corresponding number of atoms. (nmax = max # of owned+ghost in arrays on this proc)
+        atom->add_callback(0); // 0 for grow, 1 for restart, 2 for border comm 
+        // I think this basically adds this fix to the list of fixes to perform in the timestep... could be wrong though.
 
         // initialize npartner to 0 so neighbor list creation is OK the 1st time
         int nlocal = atom->nlocal;
@@ -72,7 +73,7 @@ FixSMD_TLSPH_ReferenceConfiguration::FixSMD_TLSPH_ReferenceConfiguration(LAMMPS 
                 npartner[i] = 0;
         }
 
-        comm_forward = 14;
+        comm_forward = 14; // I assume from pair->comm_forward? Confused.
         updateFlag = 1;
 }
 
@@ -105,10 +106,11 @@ int FixSMD_TLSPH_ReferenceConfiguration::setmask() {
 void FixSMD_TLSPH_ReferenceConfiguration::init() {
         if (atom->tag_enable == 0)
                 error->all(FLERR, "Pair style tlsph requires atoms have IDs");
+        // init() primarily is to set some flags and prevent errors
 }
 
 /* ---------------------------------------------------------------------- */
-
+// Updates the reference configuration if needed. Otherwise does nothing
 void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
         //return;
 
@@ -120,27 +122,28 @@ void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
         double **x = atom->x;
         double **x0 = atom->x0;
         double *rmass = atom->rmass;
-        int nlocal = atom->nlocal;
+        int nlocal = atom->nlocal; // atoms on local proc.
         int i, itmp;
         int *mask = atom->mask;
-        if (igroup == atom->firstgroup) {
-                nlocal = atom->nfirst;
+        if (igroup == atom->firstgroup) { // atoms are stored in this group first
+                nlocal = atom->nfirst; // # of atoms in first group on this proc.
         }
 
         int *updateFlag_ptr = (int *) force->pair->extract("smd/tlsph/updateFlag_ptr", itmp);
         if (updateFlag_ptr == NULL) {
                 error->one(FLERR,
                                 "fix FixSMD_TLSPH_ReferenceConfiguration failed to access updateFlag pointer. Check if a pair style exist which calculates this quantity.");
-        }
+        } // Update flag pointer will check if neighbour list needs update I believe
 
-        int *nn = (int *) force->pair->extract("smd/tlsph/numNeighsRefConfig_ptr", itmp);
+        int *nn = (int *) force->pair->extract("smd/tlsph/numNeighsRefConfig_ptr", itmp); // Number of neighs in reference configuration
         if (nn == NULL) {
                 error->all(FLERR, "FixSMDIntegrateTlsph::updateReferenceConfiguration() failed to access numNeighsRefConfig_ptr array");
         }
 
         // sum all update flag across processors
         MPI_Allreduce(updateFlag_ptr, &updateFlag, 1, MPI_INT, MPI_MAX, world);
-
+        
+        // If we need to update reference configuration, reset the reference positions, volumes, and deformation gradient
         if (updateFlag > 0) {
                 if (comm->me == 0) {
                         printf("**** updating ref config at step: " BIGINT_FORMAT "\n", update->ntimestep);
@@ -428,7 +431,7 @@ int FixSMD_TLSPH_ReferenceConfiguration::unpack_exchange(int nlocal, double *buf
                 error->message(FLERR,
                                 "in Fixtlsph_refconfigNeighGCG::unpack_exchange: local arrays too small for receiving partner information; growing arrays");
         }
-//printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
+        //printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
 
         int m = 0;
         npartner[nlocal] = static_cast<int>(buf[m++]);

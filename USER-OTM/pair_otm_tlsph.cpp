@@ -472,7 +472,7 @@ void PairTlsph::ComputeForces(int eflag, int vflag) {
                 for (idim = 0; idim < 3; idim++) {
                         x0i(idim) = x0[i][idim];
                         xi(idim) = x[i][idim];
-                        vi(idim) = v[i][idim];
+                        vi(idim) = v[i][idim]; // periodic bcs
                 }
 
                 for (jj = 0; jj < jnum; jj++) {

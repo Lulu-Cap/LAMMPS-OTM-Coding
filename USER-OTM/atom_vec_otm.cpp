@@ -40,6 +40,10 @@ using namespace LAMMPS_NS;
 
 #define NEIGH_MAX 50 // Temporary until I can make this smoother (ideally only uses as much as needed, not a fixed amount)
 
+
+// TO-DO:
+// Dynamic memory allocation
+
 /* ---------------------------------------------------------------------- */
 
 AtomVecOTM::AtomVecOTM(LAMMPS *lmp) :

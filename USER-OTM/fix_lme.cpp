@@ -365,7 +365,6 @@ void FixLME::pre_force(int vflag)
     if (mask[i] & groupbitMP) { // mp test
       jnum = npartner[i]; // number of nodal neighbours
       jlist = partner[i]; // indices of nodal neighbours
-      double *Xmp = x[i]; // mp location
 
       // initial values for optimization problem
       double lambda0[3] = {0,0,0}; // Lagrange multipliers
@@ -512,7 +511,13 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj+2] += p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
       }
-
+      
+      // Transfer to atom variables
+      for (jj = 0; jj < jnum; jj++) {
+        atom->npartner[i] = npartner[i];
+        atom->p[i][jj] = p[i][jj];
+        for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
+      }
     } // mp test
   } // mp loop
 
@@ -714,64 +719,4 @@ int FixLME::size_restart(int nlocal) {
   return (2 + dim) * npartner[nlocal] + 2;
 }
 
-/* ---------------------------------------------------------------------- */
-// Decide more clearly what to pack --> what does pack_forward_comm do? What does it
-// require to accomplish that?
-int FixLME::pack_forward_comm(int n, int *list, double *buf, int /*pbc_flag*/, int * /*pbc*/) {
-  int i, j, m;
-  double **x = atom->x;
-
-  //printf("FixLME:::pack_forward_comm\n");
-  m = 0;
-  for (i = 0; i < n; i++) {
-    j = list[i];
-    buf[m++] = x0[j][0];
-    buf[m++] = x0[j][1];
-    buf[m++] = x0[j][2];
-
-    // Probably also add the index for finding the shape function evaluations as well
-    /*
-    buf[m++] = index[j][kk];
-
-    // possible also include p and gradp
-    buf[m++] = p[n][i];
-    loop for buf[m++] = gradp[n][dim*i+kk];
-    */
-  }
-  return m;
-}
-
-/* ---------------------------------------------------------------------- */
-// Decide more clearly what to pack/unpack. Refer to the above function once 
-// completed.
-void FixLME::unpack_forward_comm(int n, int first, double *buf) {
-  /*
-        int i, m, last;
-        double *radius = atom->radius;
-        double *vfrac = atom->vfrac;
-        double **x0 = atom->x0;
-        double **defgrad0 = atom->smd_data_9;
-
-        m = 0;
-        last = first + n;
-        for (i = first; i < last; i++) {
-                x0[i][0] = buf[m++];
-                x0[i][1] = buf[m++];
-                x0[i][2] = buf[m++];
-
-                vfrac[i] = buf[m++];
-                radius[i] = buf[m++];
-
-                defgrad0[i][0] = buf[m++];
-                defgrad0[i][1] = buf[m++];
-                defgrad0[i][2] = buf[m++];
-                defgrad0[i][3] = buf[m++];
-                defgrad0[i][4] = buf[m++];
-                defgrad0[i][5] = buf[m++];
-                defgrad0[i][6] = buf[m++];
-                defgrad0[i][7] = buf[m++];
-                defgrad0[i][8] = buf[m++];
-        } 
-        */
-}
 

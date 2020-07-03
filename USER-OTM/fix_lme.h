@@ -43,8 +43,7 @@ class FixLME : public Fix {
   //void pre_exchange(); // Adds or deletes atoms before neighbour build steps, and after initial integration
   void setup(int); // Does stuff prior to first integration -> it will look nearly identical to preforce
   virtual void pre_force(int vflag); // Where all the computation takes place
-  int pack_forward_comm(int, int *, double *, int, int *);
-  void unpack_forward_comm(int, int, double *);
+
 
   double memory_usage(); // Computes memory usage by this fix
   void grow_arrays();

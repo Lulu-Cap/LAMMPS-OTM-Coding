@@ -42,7 +42,8 @@ using namespace LAMMPS_NS;
 
 
 // TO-DO:
-// Dynamic memory allocation
+// 1. Dynamic memory allocation
+// 2. Add **gradp and *npartner to everything
 
 /* ---------------------------------------------------------------------- */
 

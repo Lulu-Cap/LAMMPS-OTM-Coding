@@ -95,7 +95,9 @@ class AtomVecOTM : public AtomVec {
   double *eff_plastic_strain_rate;
 
    // USER-OTM
+   double *npartner; // Number of nodal partners to mps
    double **p; // Shape function evaluations
+   double **gradp; // Shape function derivatives
 };
 
 }

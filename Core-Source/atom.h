@@ -99,6 +99,9 @@ class Atom : protected Pointers {
 
   // USER-OTM package
   double **p; // Shape functions
+  double **gradp; // Gradient of Shape functions
+  double *npartner; // number of nodal partners per mp
+  double **partner; // nodal partner IDs
 
   // USER-DPD package
 
@@ -176,7 +179,10 @@ class Atom : protected Pointers {
 
   // USER-OTM package
   int p_flag;
-
+  int gradp_flag;
+  int npartner_flag;
+  int partner_flag;
+  
   // Peridynamics scale factor, used by dump cfg
 
   double pdscale;

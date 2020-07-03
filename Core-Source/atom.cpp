@@ -119,6 +119,9 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
 
   // USER-OTM
   p = NULL; // shape functions
+  gradp = NULL; // gradient of shape functions
+  partner = NULL; // mp-nd partner list
+  npartner = NULL; // number of partners per atom
 
   // molecular info
 
@@ -196,7 +199,8 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
 
   // USER-OTM 
 
-  p_flag = 0;
+  p_flag = gradp_flag = 0;
+  npartner_flag = partner_flag = 0;
 
   // Peridynamic scale factor
 
@@ -315,6 +319,9 @@ Atom::~Atom()
 
   // USER-OTM
   memory->destroy(p);
+  memory->destroy(gradp);
+  memory->destroy(npartner);
+  memory->destroy(partner);
 
   memory->destroy(dpdTheta);
   memory->destroy(uCond);
@@ -451,7 +458,8 @@ void Atom::create_avec(const char *style, int narg, char **arg, int trysuffix)
   rho_flag = e_flag = cv_flag = vest_flag = 0;
 
   // USER-OTM
-  p_flag = 0;
+  p_flag = gradp_flag = 0;
+  npartner_flag = partner_flag = 0;
 
   // create instance of AtomVec
   // use grow() to initialize atom-based arrays to length 1
@@ -2302,6 +2310,9 @@ void *Atom::extract(char *name)
 
   // USER-OTM
   if (strcmp(name,"p") == 0) return (void *) p;
+  if (strcmp(name,"gradp") == 0) return (void *) gradp;
+  if (strcmp(name,"npartner") == 0) return (void *) npartner;
+  if (strcmp(name,"partner") == 0) return (void *) partner;
 
   return NULL;
 }

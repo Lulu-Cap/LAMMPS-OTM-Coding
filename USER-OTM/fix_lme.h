@@ -60,7 +60,7 @@ class FixLME : public Fix {
   double **p; // Shape function evaluations
   double **gradp; // Gradient of shape functions (Should I use 3D array?)
   double gamma, h; // Locality parameter, average spacing
-  int groupND, groupMP; // group indexes of nodal and material point groups 
+  int typeND, typeMP; // group indexes of nodal and material point groups 
 
   // I will likely need storage for neighbour list stuff.
   int nmax // Maximum number of owned+ghost atoms in arrays on this proc

@@ -92,6 +92,9 @@ variable        vel_down equal -v_vel_up
 fix             veltop_fix top smd/setvel 0 v_vel_up 0
 fix             velbot_fix bot smd/setvel 0 v_vel_down 0
 
+# LME Evaluation 
+fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality 1.2
+
 ####################################################################################################
 # INTERACTION PHYSICS / MATERIAL MODEL
 # We use polynomial EOS for the pressure and the Johnson Cook strength model

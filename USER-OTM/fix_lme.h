@@ -36,22 +36,24 @@ FixStyle(otm/lme/shape,FixLME)
 namespace LAMMPS_NS {
 
 class FixLME : public Fix {
+ public:
   FixLME(class LAMMPS *, int, char **); // Parse input parameters, check for errors, add callback, initialize values and pointers
   virtual ~FixLME(); // delete callback, destroy pointers (memory.h/.cpp may need adjustment for ragged 3D arrays)
   int setmask(); // make it preforce 
   virtual void init(); // Primarily to set some flags and prevent errors
+  void init_list(int id, NeighList *ptr);
   //void pre_exchange(); // Adds or deletes atoms before neighbour build steps, and after initial integration
   void setup(int); // Does stuff prior to first integration -> it will look nearly identical to preforce
   virtual void pre_force(int vflag); // Where all the computation takes place
 
 
   double memory_usage(); // Computes memory usage by this fix
-  void grow_arrays();
+  void grow_arrays(int);
   void copy_arrays(int, int, int);
   int pack_exchange(int, double *);
   int unpack_exchange(int, double *);
-  int pack_restart(int, int);
-  int unpack_restart(int,int);
+  int pack_restart(int, double *);
+  void unpack_restart(int,int);
   int size_restart(int);
   int maxsize_restart();
 
@@ -61,9 +63,10 @@ class FixLME : public Fix {
   double **gradp; // Gradient of shape functions (Should I use 3D array?)
   double gamma, h; // Locality parameter, average spacing
   int typeND, typeMP; // group indexes of nodal and material point groups 
+  class NeighList *list;
 
   // I will likely need storage for neighbour list stuff.
-  int nmax // Maximum number of owned+ghost atoms in arrays on this proc
+  int nmax; // Maximum number of owned+ghost atoms in arrays on this proc
   int maxpartner; // The maximum partners of any atom on this proc
   int *npartner; // # of touching partners of each atom
   tagint **partner; // global atom IDs for the partners

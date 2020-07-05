@@ -48,19 +48,18 @@
 //#include "otm_math.h"
 //#include "otm_kernels.h" //cut out
 
-using namespace Eigen;
+//using namespace Eigen;
 using namespace LAMMPS_NS;
 using namespace FixConst;
 //using namespace SMD_Kernels; // Can be cut out 
 using namespace std;
-using namespace SMD_Math;
+//using namespace SMD_Math;
 #define DELTA 16384 // what?
 #define TOL 1.0e-16 // machine precision used for cutoff radii
 #define LMDA_TOL_SQ 1.0e-8*1.0e-8
 
 /*
 TO-DO:
---> Add printf() statements to show shape function evaluations
 --> Adjust functions to take multiple atom types for both nodes
     and material points. Important for multiphase/FSI/contact 
     systems
@@ -93,7 +92,7 @@ int ntypes = atom->ntypes;
 char *atom_style = atom->atom_style;
 
 if (strcmp(atom_style, "otm") != 0) {
-  error->all(FLERR< "Illegal atom_style for LME Shape function evaluations");
+  error->all(FLERR, "Illegal atom_style for LME Shape function evaluations");
 }
 if (narg != 10) {
   error->all(FLERR,"Illegal fix otm/lme/shape command"); // Must have at least 10 args 
@@ -123,6 +122,9 @@ for (index = 3; index < narg; index +=2) {
   }
   else if (strcmp(arg[index],"Locality") == 0) {
     gamma = force->numeric(FLERR,arg[index+1]);
+  }
+  else {
+    error->all(FLERR,"Unknown keyword identifier for fix otm/lme/shape");
   }
 }
 
@@ -181,7 +183,7 @@ int FixLME::setmask()
 void FixLME::init()
 {
   if (force->pair == NULL)
-    error->all(FLERR,"Fix otm/lme/shape requires a pair style be defined");)
+    error->all(FLERR,"Fix otm/lme/shape requires a pair style be defined");
 
   if (atom->tag_enable == 0) {
     error->all(FLERR, "Pair style otm requires atoms have IDs");
@@ -201,11 +203,18 @@ void FixLME::init()
 
   // Need an occasional full neighbor list --> investigate closer
   int irequest = neighbor->request(this, instance_me);
-  neighbor->requests[irequest]->pair = 0  
+  neighbor->requests[irequest]->pair = 0;  
   neighbor->requests[irequest]->fix = 1;
   neighbor->requests[irequest]->half = 1; // Why is half the default setting?
   neighbor->requests[irequest]->full = 0;
   neighbor->requests[irequest]->occasional = 0;
+}
+
+/* ---------------------------------------------------------------------- */
+
+void FixLME::init_list(int id, NeighList *ptr) 
+{
+  list = ptr;
 }
 
 /* ----------------------------------------------------------------------
@@ -233,7 +242,8 @@ void FixLME::setup(int vflag)
   int *mask = atom->mask; 
   int *type = atom->type;
   tagint *tag = atom->tag; // wtf?
-  NeighList *list = pair->list; //
+
+  //NeighList *list = pair->list; //
   inum = list->inum; // # of atoms neighbours are stored for
   ilist = list->ilist; // local indices of I atoms
   numneigh = list->numneigh; // # of J neighbours for each I atom
@@ -266,7 +276,7 @@ void FixLME::setup(int vflag)
 
         double rsq = 0.0; // Euclidean distance between particles
         for (int d = 0; d < dim; d++) {
-          r += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+          rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
         }
 
         if ( (mask[j] & groupbit) && (rsq <= Rcut_sq) && jtype == typeND) { // If neigh is node and within cutoff radius
@@ -321,6 +331,7 @@ void FixLME::setup(int vflag)
       double H[3][3] = {{0,0,0},{0,0,0},{0,0,0}};// Hessian of shape func. w.r.t lambda
       double invH[3][3] = {{1,0,0},{0,1,0},{0,0,1}}; // Inverse Hessian
       double det = 1.0;
+      double norm_sq;
       int iter = 0;
       
 
@@ -428,9 +439,9 @@ void FixLME::setup(int vflag)
         // Test if max_iter exceeded or convergence otherwise failed
         {
         if (iter > max_iter) error->all(FLERR, "Maximum iterations reached without LME convergence to specified tolerance\n");
-        if (isnormal(lambda1[0]) == 0 && lambda1[0] != 0 || 
-            isnormal(lambda1[1]) == 0 && lambda1[1] != 0 ||
-            isnormal(lambda1[2]) == 0 && lambda1[2] != 0) {
+        if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
+            (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
+            (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
           error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
         }
         }
@@ -529,7 +540,7 @@ void FixLME::pre_force(int vflag)
   int *mask = atom->mask; 
   int *type = atom->type;
   tagint *tag = atom->tag; // wtf?
-  NeighList *list = pair->list; //
+  //NeighList *list = pair->list; //
   inum = list->inum; // # of atoms neighbours are stored for
   ilist = list->ilist; // local indices of I atoms
   numneigh = list->numneigh; // # of J neighbours for each I atom
@@ -562,7 +573,7 @@ void FixLME::pre_force(int vflag)
 
         double rsq = 0.0; // Euclidean distance between particles
         for (int d = 0; d < dim; d++) {
-          r += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+          rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
         }
 
         if ( (mask[j] & groupbit) && (rsq <= Rcut_sq) && jtype == typeND) { // If neigh is node and within cutoff radius
@@ -617,8 +628,10 @@ void FixLME::pre_force(int vflag)
       double H[3][3] = {{0,0,0},{0,0,0},{0,0,0}};// Hessian of shape func. w.r.t lambda
       double invH[3][3] = {{1,0,0},{0,1,0},{0,0,1}}; // Inverse Hessian
       double det = 1.0;
+      double norm_sq;
       int iter = 0;
       
+
       // LME loop (Regularized Newton's Method)
       do {
         iter++;
@@ -682,8 +695,6 @@ void FixLME::pre_force(int vflag)
         H[2][1] = H[2][1]/(h*h) - r[2]*r[1]; 
         H[2][2] = H[2][2]/(h*h) - r[2]*r[2] + norm_r;
 
-
-
         // Invert Hessian Matrix
         if (dim == 2) { // Invert 2D explicitly
         det = H[0][0]*H[1][1] - H[0][1]*H[1][0];
@@ -725,9 +736,9 @@ void FixLME::pre_force(int vflag)
         // Test if max_iter exceeded or convergence otherwise failed
         {
         if (iter > max_iter) error->all(FLERR, "Maximum iterations reached without LME convergence to specified tolerance\n");
-        if (isnormal(lambda1[0]) == 0 && lambda1[0] != 0 || 
-            isnormal(lambda1[1]) == 0 && lambda1[1] != 0 ||
-            isnormal(lambda1[2]) == 0 && lambda1[2] != 0) {
+        if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
+            (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
+            (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
           error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
         }
         }
@@ -760,6 +771,7 @@ void FixLME::pre_force(int vflag)
       // Transfer to atom variables
       for (jj = 0; jj < jnum; jj++) {
         atom->npartner[i] = npartner[i];
+        atom->partner[i][jj] = partner[i][jj];
         atom->p[i][jj] = p[i][jj];
         for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
         // print to screen for debugging
@@ -768,6 +780,7 @@ void FixLME::pre_force(int vflag)
       }
     } // mp test
   } // mp loop
+
 
   // Adjust the below statistics --> print shape function statistics to the terminal
   
@@ -904,6 +917,7 @@ int FixLME::unpack_exchange(int nlocal, double *buf) {
 // I'm not 100% sure this is correct
 int FixLME::pack_restart(int i, double *buf) {
   int dim = domain->dimension;
+  int nlocal = atom->nlocal;
   int m = 0;
   buf[m++] = (2+dim) * npartner[i] + 2; // Is this the correct numbering? 
   buf[m++] = npartner[i];

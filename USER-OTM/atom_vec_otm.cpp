@@ -46,6 +46,7 @@ using namespace LAMMPS_NS;
 // 2. Add **gradp, *partner, and *npartner to everything
 // 3. Clean up the addition of gradp, partner, and npartner to make if more efficient 
 //    (no separate loops are needed dummy)
+// 4. Pack comm and pack_comm_vel. We do not need pack comm vel for OTM
 
 /* ---------------------------------------------------------------------- */
 
@@ -241,7 +242,7 @@ void AtomVecOTM::copy(int i, int j, int delflag) {
 }
 
 /* ---------------------------------------------------------------------- */
-
+// Adjust
 int AtomVecOTM::pack_comm(int /*n*/, int * /*list*/, double * /*buf*/, int /*pbc_flag*/, int * /*pbc*/) {
         error->one(FLERR, "atom vec tlsph can only be used with ghost velocities turned on");
         return -1;

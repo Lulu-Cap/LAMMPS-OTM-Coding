@@ -50,12 +50,12 @@ class FixLME : public Fix {
   double memory_usage(); // Computes memory usage by this fix
   void grow_arrays(int);
   void copy_arrays(int, int, int);
-  int pack_exchange(int, double *);
-  int unpack_exchange(int, double *);
-  int pack_restart(int, double *);
-  void unpack_restart(int,int);
-  int size_restart(int);
-  int maxsize_restart();
+  //int pack_exchange(int, double *);
+  //int unpack_exchange(int, double *);
+  //int pack_restart(int, double *);
+  //void unpack_restart(int,int);
+  //int size_restart(int);
+  //int maxsize_restart();
 
 
  protected:

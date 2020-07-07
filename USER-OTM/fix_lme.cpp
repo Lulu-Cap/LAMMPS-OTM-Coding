@@ -57,7 +57,7 @@ using namespace std;
 #define DELTA 16384 // what?
 #define TOL 1.0e-16 // machine precision used for cutoff radii
 #define LMDA_TOL_SQ 1.0e-8*1.0e-8
-
+#define NEIGH_MAX 100
 /*
 TO-DO:
 --> Adjust functions to take multiple atom types for both nodes
@@ -232,7 +232,7 @@ void FixLME::setup(int vflag)
 
 int i, j, ii, jj, n, inum, jnum;
   int *ilist, *jlist, *numneigh, **firstneigh;
-  int itype, jtype, maxpartner;
+  int itype, jtype;
 
   int nlocal = atom->nlocal; // number of owned atoms on this proc
   nmax = atom->nmax; // Maximum number of local + ghost atoms on this proc
@@ -254,9 +254,6 @@ int i, j, ii, jj, n, inum, jnum;
   double Rcut_sq = -log(TOL/beta); 
   int dim = domain->dimension;
 
-  // DEBUG
-  // printf("\nCutoff radius^2: %lf\n", Rcut_sq);
-
   // zero npartner for all current atoms
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
@@ -266,21 +263,9 @@ int i, j, ii, jj, n, inum, jnum;
     i = ilist[ii]; // atom index
     itype = type[i];
 
-    // DEBUG
-    // printf("\nIs atom %i in the group? %i\n"
-    //        "Is it a node? %i\n"
-    //        "Is it an mp? %i\n"
-    //        "Number of Neighbours: %i\n\n", i,mask[i]&groupbit,itype==typeND,itype==typeMP, numneigh[i]);
-    // atom->x[i][2] = 0.01; // test
-    // printf("%.4lf\t%.4lf\t%.4lf\n",x[i][0],x[i][1],atom->x[i][2]);
-
     if (mask[i] & groupbit && itype == typeMP) { // If atom is in the group and mp type
       jlist = firstneigh[i]; // pointer to neighbour list J atoms for atom I
       jnum = numneigh[i]; // Number of neighbours of atom I
-
-      // DEBUG
-      // printf("\njnum = %i\n\n",jnum);
-      // printf("x\ty\tz\n");
 
       for (jj = 0; jj < jnum; jj++) { // for each neighbour
         j = jlist[jj]; // neighbour index (local)
@@ -296,18 +281,8 @@ int i, j, ii, jj, n, inum, jnum;
 
         if ( (mask[j] & groupbit) && (rsq <= Rcut_sq) && (jtype == typeND)) { // If neigh is node and within cutoff radius
           partner[i][npartner[i]++] = j; // Add particle j to partner list of i, and increment npartner
-
-          //DEBUG
-          //printf("npartner = %i\t partner = %i\n",npartner[i],j);
         }
-
-        // DEBUG
-        //printf("\nj = %i\tnode? %i\tradius^2 = %.5lf",j,jtype==typeND,rsq);
-        // printf("%.4lf\t%.4lf\t%.4lf\n",x[j][0],x[j][1],x[j][2]);
-
       }
-      // DEBUG
-      // printf("\n\nmaterial point with atom ID %i has %i nodal neighbours\n\n",i,npartner[i]);
     }
 
     else if (mask[i] & groupbit && itype == typeND) {
@@ -316,12 +291,6 @@ int i, j, ii, jj, n, inum, jnum;
       partner[i] = NULL;
     }
   }
-
-//DEBUG
-// for (jj = 0; jj < npartner[216]; jj++) {
-//   printf("\nMaterial Point ID 216\t\tnpartner = %i\t\tpartner ID = %i\n",jj+1,partner[216][jj]);
-// }
-
 
   // Find the max # of partners (could combine with the above)
   maxpartner = 0;
@@ -350,12 +319,6 @@ int i, j, ii, jj, n, inum, jnum;
       jnum = npartner[i]; // number of nodal neighbours
       jlist = partner[i]; // indices of nodal neighbours
 
-      // DEBUG
-      // for (jj = 0; jj < npartner[i]; jj++) {
-      //      printf("\nMaterial Point ID %i\t\tnpartner = %i\t\tpartner ID = %i\n",i,jj+1,partner[i][jj]);
-      //      printf("\nMaterial Point ID %i\t\tnpartner = %i\t\tpartner ID = %i\n",216,jj+1,partner[216][jj]);
-      // }
-
       // initial values for optimization problem
       double lambda0[3] = {0,0,0}; // Lagrange multipliers
       double lambda1[3] = {1,1,1}; 
@@ -377,11 +340,6 @@ int i, j, ii, jj, n, inum, jnum;
         double Z = 0.0; // sum of partition functions
         for (jj = 0; jj < jnum; jj++) {
           j = jlist[jj]; // nodal number
-
-          // // DEBUG 
-          // int J = partner[i][jj];
-          // printf("V1\tmp: %i, nd: %i\t%lf\t%lf\t%lf\n",i,j,x[j][0],x[j][1],x[j][2]);
-          // printf("V2\tmp: %i, nd: %i\t%lf\t%lf\t%lf\n",i,J,x[J][0],x[J][1],x[J][2]);
           
           double dx[3] = { (x[i][0]-x[j][0]),
                            (x[i][1]-x[j][1]),
@@ -422,13 +380,6 @@ int i, j, ii, jj, n, inum, jnum;
           
         }
 
-        // // DEBUG
-        // double sumP = 0;
-        // for (jj = 0; jj < jnum; jj++) {
-        //   sumP += p[i][jj];
-        // }
-        // printf("\nSum(p) = %.5lf\n",sumP);
-
         r[0] /= h; r[1] /= h; r[2] /= h; 
         double norm_r = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
         norm_r = sqrt(norm_r); // 2-norm of gradient
@@ -441,12 +392,6 @@ int i, j, ii, jj, n, inum, jnum;
         H[2][0] = H[2][0]/(h*h) - r[2]*r[0];
         H[2][1] = H[2][1]/(h*h) - r[2]*r[1]; 
         H[2][2] = H[2][2]/(h*h) - r[2]*r[2] + norm_r;
-
-        // //DEBUG
-        // printf("\nr = (%lf %lf %lf)\n",r[0],r[1],r[2]);
-        // printf("\n\nH = |%.5lf %.5lf %.5lf|\n"
-        //        "    |%.5lf %.5lf %.5lf|\n"
-        //        "    |%.5lf %.5lf %.5lf|\n\n", H[0][0],H[0][1],H[0][2],H[1][0],H[1][1],H[1][2],H[2][0],H[2][1],H[2][2]);
 
         // Invert Hessian Matrix
         if (dim == 2) { // Invert 2D explicitly
@@ -478,12 +423,7 @@ int i, j, ii, jj, n, inum, jnum;
         invH[2][2] = +( H[1][1]*H[0][0] - H[1][0]*H[0][1] ) / det;
 
         }
-
-        // DEBUG
-        // printf("\n\ninvH = |%.5lf %.5lf %.5lf|\n"
-        //            "       |%.5lf %.5lf %.5lf|\n"
-        //            "       |%.5lf %.5lf %.5lf|\n\n", invH[0][0],invH[0][1],invH[0][2],invH[1][0],invH[1][1],invH[1][2],invH[2][0],invH[2][1],invH[2][2]);
-
+        
         // Increment lambda1: lambda1 = lambda0 - invH*r 
         {
         lambda1[0] = lambda0[0] - ( invH[0][0]*r[0] + invH[0][1]*r[1] + invH[0][2]*r[2] );
@@ -497,10 +437,6 @@ int i, j, ii, jj, n, inum, jnum;
         if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
             (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
             (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
-
-          // // DEBUG
-          // printf("lambda = (%lf, %lf, %lf)\niter = %i\n", lambda1[0],lambda1[1],lambda1[2],iter); 
-
           error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
         }
         }
@@ -510,19 +446,6 @@ int i, j, ii, jj, n, inum, jnum;
                   (lambda0[1]-lambda1[1])*(lambda0[1]-lambda1[1]) +
                   (lambda0[2]-lambda1[2])*(lambda0[2]-lambda1[2]);
         }
-
-        // // DEBUG
-        printf("\nlambda0 = (%e %e %e)\n"
-                 "lambda1 = (%e %e %e)\n"
-                 "dLambda^2 = %e\n",
-                 lambda0[0],lambda0[1],lambda0[2],lambda1[0],lambda1[1],lambda1[2],norm_sq);
-
-        // // DEBUG
-        // printf("jnum = %i\n",jnum);
-        // for (jj = 0; jj < jnum; jj++) {
-        //   j = jlist[jj];
-        //   printf("%i\t%lf\t%lf\t%lf\n",j,x[j][0],x[j][1],x[j][2]);
-        // }
 
       } while (norm_sq > LMDA_TOL_SQ); // Convergence while loop
       
@@ -542,12 +465,6 @@ int i, j, ii, jj, n, inum, jnum;
           gradp[i][dim*jj+2] += -p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
       }
-      
-      //DEBUG
-      for (jj = 0; jj < jnum; jj++) {
-        printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
-                i,partner[i][jj],p[i][jj],gradp[i][dim*j],gradp[i][dim*j+1]);
-      }
 
       // Transfer to atom variables
       for (jj = 0; jj < jnum; jj++) {
@@ -555,9 +472,6 @@ int i, j, ii, jj, n, inum, jnum;
         atom->partner[i][jj] = partner[i][jj];
         atom->p[i][jj] = p[i][jj];
         for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
-        // DEBUG
-        printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
-                i,partner[i][jj],p[i][jj],gradp[i][dim*j],gradp[i][dim*j+1]);
       }
     
     } // mp test
@@ -611,7 +525,7 @@ void FixLME::pre_force(int vflag)
 {
   int i, j, ii, jj, n, inum, jnum;
   int *ilist, *jlist, *numneigh, **firstneigh;
-  int itype, jtype, maxpartner;
+  int itype, jtype;
 
   int nlocal = atom->nlocal; // number of owned atoms on this proc
   nmax = atom->nmax; // Maximum number of local + ghost atoms on this proc
@@ -633,9 +547,6 @@ void FixLME::pre_force(int vflag)
   double Rcut_sq = -log(TOL/beta); 
   int dim = domain->dimension;
 
-  // DEBUG
-  // printf("\nCutoff radius^2: %lf\n", Rcut_sq);
-
   // zero npartner for all current atoms
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
@@ -645,24 +556,12 @@ void FixLME::pre_force(int vflag)
     i = ilist[ii]; // atom index
     itype = type[i];
 
-    // DEBUG
-    // printf("\nIs atom %i in the group? %i\n"
-    //        "Is it a node? %i\n"
-    //        "Is it an mp? %i\n"
-    //        "Number of Neighbours: %i\n\n", i,mask[i]&groupbit,itype==typeND,itype==typeMP, numneigh[i]);
-    // atom->x[i][2] = 0.01; // test
-    // printf("%.4lf\t%.4lf\t%.4lf\n",x[i][0],x[i][1],atom->x[i][2]);
-
     if (mask[i] & groupbit && itype == typeMP) { // If atom is in the group and mp type
       jlist = firstneigh[i]; // pointer to neighbour list J atoms for atom I
       jnum = numneigh[i]; // Number of neighbours of atom I
 
       if (jnum > NEIGH_MAX)
         error->all(FLERR,"number of neighbours potentially exceeds maximum 2nd dimension of shape function array");
-
-      // DEBUG
-      // printf("\njnum = %i\n\n",jnum);
-      // printf("x\ty\tz\n");
 
       for (jj = 0; jj < jnum; jj++) { // for each neighbour
         j = jlist[jj]; // neighbour index (local)
@@ -678,18 +577,8 @@ void FixLME::pre_force(int vflag)
 
         if ( (mask[j] & groupbit) && (rsq <= Rcut_sq) && (jtype == typeND)) { // If neigh is node and within cutoff radius
           partner[i][npartner[i]++] = j; // Add particle j to partner list of i, and increment npartner
-
-          //DEBUG
-          //printf("npartner = %i\t partner = %i\n",npartner[i],j);
         }
-
-        // DEBUG
-        //printf("\nj = %i\tnode? %i\tradius^2 = %.5lf",j,jtype==typeND,rsq);
-        // printf("%.4lf\t%.4lf\t%.4lf\n",x[j][0],x[j][1],x[j][2]);
-
       }
-      // DEBUG
-      // printf("\n\nmaterial point with atom ID %i has %i nodal neighbours\n\n",i,npartner[i]);
     }
 
     else if (mask[i] & groupbit && itype == typeND) {
@@ -698,12 +587,6 @@ void FixLME::pre_force(int vflag)
       partner[i] = NULL;
     }
   }
-
-//DEBUG
-// for (jj = 0; jj < npartner[216]; jj++) {
-//   printf("\nMaterial Point ID 216\t\tnpartner = %i\t\tpartner ID = %i\n",jj+1,partner[216][jj]);
-// }
-
 
   // Find the max # of partners (could combine with the above)
   maxpartner = 0;
@@ -732,12 +615,6 @@ void FixLME::pre_force(int vflag)
       jnum = npartner[i]; // number of nodal neighbours
       jlist = partner[i]; // indices of nodal neighbours
 
-      // DEBUG
-      // for (jj = 0; jj < npartner[i]; jj++) {
-      //      printf("\nMaterial Point ID %i\t\tnpartner = %i\t\tpartner ID = %i\n",i,jj+1,partner[i][jj]);
-      //      printf("\nMaterial Point ID %i\t\tnpartner = %i\t\tpartner ID = %i\n",216,jj+1,partner[216][jj]);
-      // }
-
       // initial values for optimization problem
       double lambda0[3] = {0,0,0}; // Lagrange multipliers
       double lambda1[3] = {1,1,1}; 
@@ -760,11 +637,6 @@ void FixLME::pre_force(int vflag)
         for (jj = 0; jj < jnum; jj++) {
           j = jlist[jj]; // nodal number
 
-          // // DEBUG 
-          // int J = partner[i][jj];
-          // printf("V1\tmp: %i, nd: %i\t%lf\t%lf\t%lf\n",i,j,x[j][0],x[j][1],x[j][2]);
-          // printf("V2\tmp: %i, nd: %i\t%lf\t%lf\t%lf\n",i,J,x[J][0],x[J][1],x[J][2]);
-          
           double dx[3] = { (x[i][0]-x[j][0]),
                            (x[i][1]-x[j][1]),
                            (x[i][2]-x[j][2])};
@@ -803,13 +675,6 @@ void FixLME::pre_force(int vflag)
           H[2][2] += p[i][jj]*dx[2]*dx[2];
           
         }
-
-        // // DEBUG
-        // double sumP = 0;
-        // for (jj = 0; jj < jnum; jj++) {
-        //   sumP += p[i][jj];
-        // }
-        // printf("\nSum(p) = %.5lf\n",sumP);
 
         r[0] /= h; r[1] /= h; r[2] /= h; 
         double norm_r = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
@@ -918,13 +783,6 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj] = p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
           gradp[i][dim*jj+1] = p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] );
 
-          // //DEBUG
-          // printf("\ndx = (%e %e %e)\n", dx[0],dx[1],dx[2]);
-          // printf("invH = |%.5lf %.5lf %.5lf|\n"
-          //        "       |%.5lf %.5lf %.5lf|\n"
-          //        "       |%.5lf %.5lf %.5lf|\n\n", invH[0][0],invH[0][1],invH[0][2],invH[1][0],invH[1][1],invH[1][2],invH[2][0],invH[2][1],invH[2][2]);
-
-
         }
         else if (dim == 3) {
           gradp[i][dim*jj] += p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] + invH[0][2]*dx[2] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
@@ -932,19 +790,13 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj+2] += p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
       }
-      
-      // //DEBUG
-      // for (jj = 0; jj < jnum; jj++) {
-      //   printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
-      //           i,partner[i][jj],p[i][jj],gradp[i][dim*jj],gradp[i][dim*jj+1]);
-      // }
 
       // Transfer to atom variables
       for (jj = 0; jj < jnum; jj++) {
-        atom->npartner[i] = npartner[i];
-        atom->partner[i][jj] = partner[i][jj];
-        atom->p[i][jj] = p[i][jj];
-        for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
+        // atom->npartner[i] = npartner[i];
+        // atom->partner[i][jj] = partner[i][jj];
+        // atom->p[i][jj] = p[i][jj];
+        // for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
         // DEBUG
         printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
                 i,partner[i][jj],p[i][jj],gradp[i][dim*jj],gradp[i][dim*jj+1]);
@@ -998,11 +850,12 @@ void FixLME::pre_force(int vflag)
 
 double FixLME::memory_usage()
 {
+  int dim = domain->dimension;
   int nmax = atom->nmax;
   int bytes = nmax*sizeof(int);
   bytes += nmax*maxpartner * sizeof(tagint); // partner array
   bytes += nmax * maxpartner * sizeof(double); // p
-  bytes += nmax * maxpartner * sizeof(double) * domain->dimension; // gradp
+  bytes += nmax * maxpartner * sizeof(double) * dim; // gradp
   bytes += nmax * sizeof(int); // npartner array
   return bytes;
 }
@@ -1024,136 +877,140 @@ void FixLME::grow_arrays(int nmax)
  ------------------------------------------------------------------------- */
 
 void FixLME::copy_arrays(int i, int j, int /*delflag*/) {
-  int dim = domain->dimension;
-  npartner[j] = npartner[i];
-  for (int m = 0; m < npartner[j]; m++) {
-    partner[j][m] = partner[i][m];
-    p[j][m] = p[i][m];
-    for (int jj = 0; jj < dim; jj++)
-      gradp[j][dim*m+jj] = gradp[i][dim*m+jj];
-  }
+  // int dim = domain->dimension;
+  // npartner[j] = npartner[i];
+  // for (int m = 0; m < npartner[j]; m++) {
+  //   partner[j][m] = partner[i][m];
+  //   p[j][m] = p[i][m];
+  //   for (int jj = 0; jj < dim; jj++)
+  //     gradp[j][dim*m+jj] = gradp[i][dim*m+jj];
+  // }
 }
 
 /* ----------------------------------------------------------------------
  pack values in local atom-based arrays for exchange with another proc
  ------------------------------------------------------------------------- */
 
-int FixLME::pack_exchange(int i, double *buf) {
-// NOTE: how do I know comm buf is big enough if extreme # of touching neighs
-// Comm::BUFEXTRA may need to be increased
-
-//printf("pack_exchange ...\n");
-        int dim = domain->dimension;
-        int m = 0;
-        buf[m++] = npartner[i];
-        for (int n = 0; n < npartner[i]; n++) {
-                buf[m++] = partner[i][n];
-                buf[m++] = p[i][n];
-                for (int jj = 0; jj < dim; jj++) {
-                  buf[m++] = gradp[i][dim*n+jj];
-                }
-        }
-        return m;
-
-}
+// int FixLME::pack_exchange(int i, double *buf) {
+// // NOTE: how do I know comm buf is big enough if extreme # of touching neighs
+// // Comm::BUFEXTRA may need to be increased
+//
+// //printf("pack_exchange ...\n");
+//         // int dim = domain->dimension;
+//         // int m = 0;
+//         // buf[m++] = npartner[i];
+//         // for (int n = 0; n < npartner[i]; n++) {
+//         //         buf[m++] = partner[i][n];
+//         //         buf[m++] = p[i][n];
+//         //         for (int jj = 0; jj < dim; jj++) {
+//         //           buf[m++] = gradp[i][dim*n+jj];
+//         //         }
+//         // }
+//         // return m;
+//   return 0;
+// }
 
 /* ----------------------------------------------------------------------
  unpack values in local atom-based arrays from exchange with another proc
  ------------------------------------------------------------------------- */
 
-int FixLME::unpack_exchange(int nlocal, double *buf) {
-  if (nlocal == nmax) {
-    //printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
-    nmax = nmax / DELTA * DELTA;
-    nmax += DELTA;
-    grow_arrays(nmax);
-
-    error->message(FLERR,
-      "in FixLME::unpack_exchange: local arrays too small for receiving partner information; growing arrays");
-  }
-  //printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
-
-  int dim = domain->dimension;
-  int m = 0;
-  npartner[nlocal] = static_cast<int>(buf[m++]);
-  for (int n = 0; n < npartner[nlocal]; n++) {
-    partner[nlocal][n] = static_cast<tagint>(buf[m++]);
-    p[nlocal][n] = static_cast<float>(buf[m++]);
-    for (int jj = 0; jj < dim; jj++) {
-      gradp[nlocal][dim*n+jj] = static_cast<float>(buf[m++]);
-    }
-  }
-  return m;
-}
+// int FixLME::unpack_exchange(int nlocal, double *buf) {
+//   // if (nlocal == nmax) {
+//   //   //printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
+//   //   nmax = nmax / DELTA * DELTA;
+//   //   nmax += DELTA;
+//   //   grow_arrays(nmax);
+//
+//   //   error->message(FLERR,
+//   //     "in FixLME::unpack_exchange: local arrays too small for receiving partner information; growing arrays");
+//   // }
+//   // //printf("nlocal=%d, nmax=%d\n", nlocal, nmax);
+//
+//   // int dim = domain->dimension;
+//   // int m = 0;
+//   // npartner[nlocal] = static_cast<int>(buf[m++]);
+//   // for (int n = 0; n < npartner[nlocal]; n++) {
+//   //   partner[nlocal][n] = static_cast<tagint>(buf[m++]);
+//   //   p[nlocal][n] = static_cast<float>(buf[m++]);
+//   //   for (int jj = 0; jj < dim; jj++) {
+//   //     gradp[nlocal][dim*n+jj] = static_cast<float>(buf[m++]);
+//   //   }
+//   // }
+//   // return m;
+//   return 0;
+// }
 
 /* ----------------------------------------------------------------------
  pack values in local atom-based arrays for restart file
  ------------------------------------------------------------------------- */
 // I'm not 100% sure this is correct
-int FixLME::pack_restart(int i, double *buf) {
-  int dim = domain->dimension;
-  int nlocal = atom->nlocal;
-  int m = 0;
-  buf[m++] = (2+dim) * npartner[i] + 2; // Is this the correct numbering? 
-  buf[m++] = npartner[i];
-  for (int n = 0; n < npartner[i]; n++) {
-    buf[m++] = partner[i][n]; // +1
-    buf[m++] = p[i][n]; // +2
-    for (int jj = 0; jj < dim; jj++) {
-      gradp[nlocal][dim*n+jj] = static_cast<float>(buf[m++]); 
-    } // +dim
-  }
-  return m;
-}
+//int FixLME::pack_restart(int i, double *buf) {
+  // int dim = domain->dimension;
+  // int nlocal = atom->nlocal;
+  // int m = 0;
+  // buf[m++] = (2+dim) * npartner[i] + 2; // Is this the correct numbering? 
+  // buf[m++] = npartner[i];
+  // for (int n = 0; n < npartner[i]; n++) {
+  //   buf[m++] = partner[i][n]; // +1
+  //   buf[m++] = p[i][n]; // +2
+  //   for (int jj = 0; jj < dim; jj++) {
+  //     gradp[nlocal][dim*n+jj] = static_cast<float>(buf[m++]); 
+  //   } // +dim
+  // }
+  // return m;
+ // return 0;
+//}
 
 /* ----------------------------------------------------------------------
  unpack values from atom->extra array to restart the fix
  ------------------------------------------------------------------------- */
 // Not finished yet...
-void FixLME::unpack_restart(int nlocal, int nth) 
-{
+//void FixLME::unpack_restart(int nlocal, int nth) 
+//{
 // //ipage = NULL if being called from granular pair style init()
-
+//
 // // skip to Nth set of extra values
-
+//
 //   double **extra = atom->extra;
-
+//
 //   int m = 0;
 //   for (int i = 0; i < nth; i++)
 //           m += static_cast<int>(extra[nlocal][m]);
 //   m++;
-
+//
 //   // allocate new chunks from ipage,dpage for incoming values
-
+//
 //   npartner[nlocal] = static_cast<int>(extra[nlocal][m++]);
 //   for (int n = 0; n < npartner[nlocal]; n++) {
 //           partner[nlocal][n] = static_cast<tagint>(extra[nlocal][m++]);
 //   }
-  
-  return;
-
-}
+// 
+//  return;
+//
+//}
 
 /* ----------------------------------------------------------------------
  maxsize of any atom's restart data
  ------------------------------------------------------------------------- */
 
-int FixLME::maxsize_restart() {
+//int FixLME::maxsize_restart() {
 // maxtouch_all = max # of touching partners across all procs
-
-  int maxtouch_all;
-  int dim = domain->dimension;
-  MPI_Allreduce(&maxpartner, &maxtouch_all, 1, MPI_INT, MPI_MAX, world);
-  return (2+dim) * maxtouch_all + 2;
-}
+//
+  // int maxtouch_all;
+  // int dim = domain->dimension;
+  // MPI_Allreduce(&maxpartner, &maxtouch_all, 1, MPI_INT, MPI_MAX, world);
+  // return (2+dim) * maxtouch_all + 2;
+ // return 0;
+//}
 
 /* ----------------------------------------------------------------------
  size of atom nlocal's restart data
  ------------------------------------------------------------------------- */
 
-int FixLME::size_restart(int nlocal) {
-  int dim = domain->dimension;
-  return (2 + dim) * npartner[nlocal] + 2;
-}
+//int FixLME::size_restart(int nlocal) {
+  // int dim = domain->dimension;
+  // return (2 + dim) * npartner[nlocal] + 2;
+//  return 0;
+//}
 
 

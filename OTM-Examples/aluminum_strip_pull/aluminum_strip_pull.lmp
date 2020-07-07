@@ -93,14 +93,15 @@ fix             veltop_fix top smd/setvel 0 v_vel_up 0
 fix             velbot_fix bot smd/setvel 0 v_vel_down 0
 
 # LME Evaluation 
-fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality 1.2
+fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality 0.8
 
 ####################################################################################################
 # INTERACTION PHYSICS / MATERIAL MODEL
 # We use polynomial EOS for the pressure and the Johnson Cook strength model
 # An integration point fails (cannot support tension anymore) if the plastic strain exceeds 0.5.
 ####################################################################################################
-pair_style      hybrid/overlay smd/tlsph #smd/hertz 1.5
+pair_style      hybrid/overlay smd/tlsph &
+							   smd/hertz 2
 pair_coeff      1 1 smd/tlsph *COMMON ${rho} ${E} ${nu} ${q1} ${q2} ${hg} ${cp} &
    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6} &
   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M} &
@@ -108,8 +109,7 @@ pair_coeff      1 1 smd/tlsph *COMMON ${rho} ${E} ${nu} ${q1} ${q2} ${hg} ${cp} 
                 *END
 
 pair_coeff 		2 2 none 
-pair_coeff 		1 2 none 
-#pair_coeff 		1 2 smd/hertz 0 # It won't let me set it to 'none', so I guess we'll do contact stiffness with 0 amplitude
+pair_coeff 		1 2 smd/hertz 0 # If I use 'none' here it will not build the neighbour list as required 
 
 ####################################################################################################
 # TIME INTEGRATION

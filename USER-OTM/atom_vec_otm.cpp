@@ -38,12 +38,14 @@ using namespace LAMMPS_NS;
 #define NMAT_FULL 9
 #define NMAT_SYMM 6
 
-#define NEIGH_MAX 50 // Temporary until I can make this smoother (ideally only uses as much as needed, not a fixed amount)
+#define NEIGH_MAX 100 // Temporary until I can make this smoother (ideally only uses as much as needed, not a fixed amount)
 
 
 // TO-DO:
 // 1. Dynamic memory allocation
-// 2. Add **gradp and *npartner to everything
+// 2. Add **gradp, *partner, and *npartner to everything
+// 3. Clean up the addition of gradp, partner, and npartner to make if more efficient 
+//    (no separate loops are needed dummy)
 
 /* ---------------------------------------------------------------------- */
 
@@ -81,6 +83,9 @@ AtomVecOTM::AtomVecOTM(LAMMPS *lmp) :
 
         // USER-OTM
         atom->p_flag = 1;
+        atom->gradp_flag = 1;
+        atom->npartner_flag = 1;
+        atom->partner_flag = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -133,7 +138,11 @@ void AtomVecOTM::grow(int n) {
         damage = memory->grow(atom->damage, nmax, "atom:damage");
 
         // USER-OTM
+        int dim = domain->dimension;
         p = memory->grow(atom->p, nmax, NEIGH_MAX, "atom:p");
+        gradp = memory->grow(atom->gradp, nmax, dim*NEIGH_MAX, "atom:gradp");
+        npartner = memory->grow(atom->npartner, nmax, "atom:npartner");
+        partner = memory->grow(atom->partner, nmax, NEIGH_MAX, "atom:partner");
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -170,6 +179,9 @@ void AtomVecOTM::grow_reset() {
 
         // USER-OTM
         p = atom->p;
+        gradp = atom->gradp;
+        npartner = atom->npartner;
+        partner = atom->partner;
 }
 
 /* ----------------------------------------------------------------------
@@ -214,8 +226,13 @@ void AtomVecOTM::copy(int i, int j, int delflag) {
         damage[j] = damage[i];
 
         // USER-OTM
+        int dim = domain->dimension;
+        npartner[j] = npartner[i];
         for (int k = 0; k < NEIGH_MAX; k++) {
                 p[j][k] = p[i][k];
+                partner[j][k] = partner[i][k];
+                for (int d = 0; d < dim; d++)
+                        gradp[j][dim*k+d] = gradp[i][dim*k+d];
         }
 
         if (atom->nextra_grow)
@@ -780,9 +797,14 @@ int AtomVecOTM::pack_exchange(int i, double *buf) {
         buf[m++] = damage[i];
 
         // USER-OTM
+        int dim = domain->dimension; 
+        buf[m++] = npartner[i]; // 40
         for (int k = 0; k < NEIGH_MAX; k++) {
-                buf[m++] = p[i][k]; // 39 + NEIGH_MAX
-        }
+                buf[m++] = partner[i][k];
+                buf[m++] = p[i][k];
+                for (int d = 0; d < dim; d++) 
+                        buf[m++] = gradp[i][dim*k+d];
+        } // 40 + (2+dim)*NEIGH_MAX
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -839,9 +861,14 @@ int AtomVecOTM::unpack_exchange(double *buf) {
         damage[nlocal] = buf[m++]; //40
 
         // USER-OTM
+        int dim = domain->dimension; 
+        npartner[nlocal] = buf[m++]; //41
         for (int k = 0; k < NEIGH_MAX; k++) {
+                partner[nlocal][k] = buf[m++];
                 p[nlocal][k] = buf[m++];
-        } // NEIGH_MAX + 40
+                for (int d = 0; d < dim; d++) 
+                        gradp[nlocal][dim*k+d] = buf[m++];
+        } // 41 + (2+dim)*NEIGH_MAX
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -915,9 +942,14 @@ int AtomVecOTM::pack_restart(int i, double *buf) {
         buf[m++] = damage[i]; // 41
 
         // USER-OTM
-        for (int k =0; k < NEIGH_MAX; k++) {
-                buf[m++] = p[i][k]; 
-        } // 41 + NEIGH_MAX
+        int dim = domain->dimension; 
+        buf[m++] = npartner[i]; // 42
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                buf[m++] = partner[i][k];
+                buf[m++] = p[i][k];
+                for (int d = 0; d < dim; d++) 
+                        buf[m++] = gradp[i][dim*k+d];
+        } // 42 + (2+dim)*NEIGH_MAX
 
         if (atom->nextra_restart)
                 for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
@@ -979,9 +1011,14 @@ int AtomVecOTM::unpack_restart(double *buf) {
         damage[nlocal] = buf[m++]; //41
 
         // USER-OTM
-        for (int k=0; k < NEIGH_MAX; k++) {
+        int dim = domain->dimension; 
+        npartner[nlocal] = buf[m++]; //42
+        for (int k = 0; k < NEIGH_MAX; k++) {
+                partner[nlocal][k] = buf[m++];
                 p[nlocal][k] = buf[m++];
-        } // 41 + NEIGH_MAX
+                for (int d = 0; d < dim; d++) 
+                        gradp[nlocal][dim*k+d] = buf[m++];
+        } // 42 + (2+dim)*NEIGH_MAX
 
         //printf("nlocal in restart is %d\n", nlocal);
 
@@ -1052,10 +1089,15 @@ void AtomVecOTM::create_atom(int itype, double *coord) {
         damage[nlocal] = 0.0;
 
         // USER-OTM
+        int dim = domain->dimension;
+        npartner[nlocal] = 0;
         for (int k = 0; k < NEIGH_MAX; k++) {
+                partner[nlocal][k] = 0;
                 p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
+                for (int d = 0; d < dim; d++) 
+                        gradp[nlocal][dim*k+d] = 0.0;
         }
-
+        
         atom->nlocal++;
 }
 
@@ -1133,8 +1175,13 @@ void AtomVecOTM::data_atom(double *coord, imageint imagetmp, char **values) {
         smd_data_9[nlocal][8] = 1.0; // zz
 
         // USER-OTM
+        int dim = domain->dimension;
+        npartner[nlocal] = 0;
         for (int k = 0; k < NEIGH_MAX; k++) {
+                partner[nlocal][k] = 0;
                 p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
+                for (int d = 0; d < dim; d++)
+                        gradp[nlocal][dim*k+d] = 0.0;
         }
 
         atom->nlocal++;
@@ -1326,8 +1373,15 @@ bigint AtomVecOTM::memory_usage() {
                 bytes += memory->usage(damage, nmax);
         
         // USER-OTM
+        int dim = domain->dimension;
+        if (atom->memcheck("npartner"))
+                bytes += memory->usage(npartner,nmax);
+        if (atom->memcheck("partner"))
+                bytes += memory->usage(partner, nmax, NEIGH_MAX);
         if (atom->memcheck("p"))
                 bytes += memory->usage(p, nmax, NEIGH_MAX);
+        if (atom->memcheck("gradp"))
+                bytes += memory->usage(gradp,nmax, dim*NEIGH_MAX);
 
         return bytes;
 }

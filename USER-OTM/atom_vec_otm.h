@@ -96,6 +96,7 @@ class AtomVecOTM : public AtomVec {
 
    // USER-OTM
    double *npartner; // Number of nodal partners to mps
+   double **partner; // Order of partners
    double **p; // Shape function evaluations
    double **gradp; // Shape function derivatives
 };

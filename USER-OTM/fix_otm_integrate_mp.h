@@ -30,8 +30,8 @@ FixStyle(otm/integrate_mp,FixOTMIntegrateMP)
 
 #else
 
-#ifndef LMP_FIX_LME_H
-#define LMP_FIX_LME_H
+#ifndef LMP_FIX_INTEGRATE_MP_H
+#define LMP_FIX_INTEGRATE_MP_H
 
 #include "fix.h"
 
@@ -44,7 +44,8 @@ class FixOTMIntegrateMP : public Fix {
   int setmask(); // make it preforce 
   virtual void init(); // Primarily to set some flags and prevent errors
   void init_list(int id, NeighList *ptr);
-  void post_integrate(int);
+  void post_integrate();
+  //void initial_integrate(int);
   void reset_dt() {return;};
 
  protected:

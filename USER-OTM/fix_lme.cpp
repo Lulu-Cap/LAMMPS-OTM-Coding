@@ -479,7 +479,7 @@ void FixLME::setup(int vflag)
   } // mp loop
 
   // DEBUG
-  printf("\n\nTimestep = %lli\n-------------------\n",update->ntimestep);
+  //printf("\n\nTimestep = %lli\n-------------------\n",update->ntimestep);
 
 
   // Adjust the below statistics --> print shape function statistics to the terminal
@@ -500,20 +500,20 @@ void FixLME::setup(int vflag)
     MPI_Allreduce(&count, &countall, 1, MPI_INT, MPI_SUM, world);
     if (countall < 1) countall = 1;
 
-    if (comm->me == 0) {
-      if (screen) {
-        printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
-        fprintf(screen, "OTM neighbors:\n");
-        fprintf(screen, "  max # of neighbors for a single mp = %d\n", maxpartner);
-        fprintf(screen, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
-        printf(">>========>>========>>========>>========>>========>>========>>========>>========\n\n");
-      }
-      if (logfile) {
-        fprintf(logfile, "\nOTM neighbors:\n");
-        fprintf(logfile, "  max # of neighbors for a single particle = %d\n", maxpartner);
-        fprintf(logfile, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
-      }
-    }
+    // if (comm->me == 0) {
+    //   if (screen) {
+    //     printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
+    //     fprintf(screen, "OTM neighbors:\n");
+    //     fprintf(screen, "  max # of neighbors for a single mp = %d\n", maxpartner);
+    //     fprintf(screen, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
+    //     printf(">>========>>========>>========>>========>>========>>========>>========>>========\n\n");
+    //   }
+    //   if (logfile) {
+    //     fprintf(logfile, "\nOTM neighbors:\n");
+    //     fprintf(logfile, "  max # of neighbors for a single particle = %d\n", maxpartner);
+    //     fprintf(logfile, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
+    //   }
+    // }
   } 
 }
 
@@ -751,10 +751,10 @@ void FixLME::pre_force(int vflag)
         }
 
         // // DEBUG
-        printf("\nlambda0 = (%e %e %e)\n"
-                 "lambda1 = (%e %e %e)\n"
-                 "dLambda^2 = %e\n",
-                 lambda0[0],lambda0[1],lambda0[2],lambda1[0],lambda1[1],lambda1[2],norm_sq);
+        // printf("\nlambda0 = (%e %e %e)\n"
+        //          "lambda1 = (%e %e %e)\n"
+        //          "dLambda^2 = %e\n",
+        //          lambda0[0],lambda0[1],lambda0[2],lambda1[0],lambda1[1],lambda1[2],norm_sq);
 
         // // DEBUG
         // printf("jnum = %i\n",jnum);
@@ -790,8 +790,8 @@ void FixLME::pre_force(int vflag)
         // atom->p[i][jj] = p[i][jj];
         // for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
         // DEBUG
-        printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
-                i,atom->partner[i][jj],atom->p[i][jj],atom->gradp[i][dim*jj],atom->gradp[i][dim*jj+1]);
+        // printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
+        //         i,atom->partner[i][jj],atom->p[i][jj],atom->gradp[i][dim*jj],atom->gradp[i][dim*jj+1]);
         // printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
         //         i,partner[i][jj],p[i][jj],gradp[i][dim*jj],gradp[i][dim*jj+1]);
       }
@@ -800,8 +800,8 @@ void FixLME::pre_force(int vflag)
   } // mp loop
 
   // DEBUG
-  printf("\n\nTimestep = %lli\n-------------------\n",update->ntimestep);
-
+  // printf("\n\nTimestep = %lli\n-------------------\n",update->ntimestep);
+  printf("\n\nLME x[161] = (%e,%e,%e)\n\n",x[161][0],x[161][1],x[161][2]);
 
   // Adjust the below statistics --> print shape function statistics to the terminal
   
@@ -821,20 +821,20 @@ void FixLME::pre_force(int vflag)
     MPI_Allreduce(&count, &countall, 1, MPI_INT, MPI_SUM, world);
     if (countall < 1) countall = 1;
 
-    if (comm->me == 0) {
-      if (screen) {
-        printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
-        fprintf(screen, "OTM neighbors:\n");
-        fprintf(screen, "  max # of neighbors for a single mp = %d\n", maxpartner);
-        fprintf(screen, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
-        printf(">>========>>========>>========>>========>>========>>========>>========>>========\n\n");
-      }
-      if (logfile) {
-        fprintf(logfile, "\nOTM neighbors:\n");
-        fprintf(logfile, "  max # of neighbors for a single particle = %d\n", maxpartner);
-        fprintf(logfile, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
-      }
-    }
+    // if (comm->me == 0) {
+    //   if (screen) {
+    //     printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
+    //     fprintf(screen, "OTM neighbors:\n");
+    //     fprintf(screen, "  max # of neighbors for a single mp = %d\n", maxpartner);
+    //     fprintf(screen, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
+    //     printf(">>========>>========>>========>>========>>========>>========>>========>>========\n\n");
+    //   }
+    //   if (logfile) {
+    //     fprintf(logfile, "\nOTM neighbors:\n");
+    //     fprintf(logfile, "  max # of neighbors for a single particle = %d\n", maxpartner);
+    //     fprintf(logfile, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
+    //   }
+    // }
   } 
 }
 
@@ -1005,7 +1005,7 @@ int FixLME::maxsize_restart() {
   int maxtouch_all;
   int dim = domain->dimension;
   MPI_Allreduce(&maxpartner, &maxtouch_all, 1, MPI_INT, MPI_MAX, world);
-  
+
   return (2+dim) * maxtouch_all + 2;
 }
 

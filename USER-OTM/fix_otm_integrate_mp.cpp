@@ -131,7 +131,7 @@ FixOTMIntegrateMP::~FixOTMIntegrateMP()
   an initial_integrate or post_integrate mask b/c I'm not sure exactly 
   how the order of events happens w/in a stage.
 ------------------------------------------------------------------------- */
-// INITIAL_INTEGRATE or POST_INTEGRATE? Which makes more sense?
+// INITIAL_INTEGRATE or POST_INTEGRATE? Which makes more sense? POST_INTEGRATE is safer
 int FixOTMIntegrateMP::setmask()
 {
   int mask = 0;
@@ -178,7 +178,7 @@ void FixOTMIntegrateMP::init_list(int id, NeighList *ptr)
   The velocity is interpolated with first order backwards difference
 ------------------------------------------------------------------------- */
 
-void FixOTMIntegrateMP::post_integrate(int vflag)
+void FixOTMIntegrateMP::post_integrate(void)
 {
   int i, j, ii, jj, d, inum, jnum;
   int *ilist, *jlist;
@@ -201,7 +201,6 @@ void FixOTMIntegrateMP::post_integrate(int vflag)
   inum = list->inum; // # of atoms neighbours are stored for
   ilist = list->ilist; // local indices of I atom
 
-  
   // Main loop: performs both x and v updates
   for (ii = 0; ii < inum; ii++) { // for every atom w/neighbours
     i = ilist[ii]; // atom index
@@ -216,6 +215,9 @@ void FixOTMIntegrateMP::post_integrate(int vflag)
         x[i][d] = 0.0; // zero the mp positions
       }
 
+      // DEBUG 
+      double sump = 0.0;
+
       for (jj = 0; jj < jnum; jj++) { // for each neighbour node
         j = jlist[jj]; // neighbour index (local)
         j &= NEIGHMASK; 
@@ -225,12 +227,10 @@ void FixOTMIntegrateMP::post_integrate(int vflag)
         for (d = 0; d < dim; d++) x[i][d] += p[i][jj]*x[j][d];
 
       }
+      for (d = 0; d < dim; d++) v[i][d] = (x[i][d] - x0[d])/dt; // backwards 1st order velocity
     }
-
-    for (d = 0; d < dim; d++) v[i][d] = (x[i][d] - x0[d])/dt; // backwards 1st order velocity
-
   }
-
+  
   return;  
 }
 

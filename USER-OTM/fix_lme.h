@@ -6,7 +6,10 @@
  * Copyright (2020) Lucas Caparini, lucas.caparini@alumni.ubc.ca
  * Department of Mechanical Engineering, University of British Columbia,
  * British Columbia, Canada
- *
+ * 
+ * Purpose: This fix will update the LME shape function evaluations after
+ * the movement of the nodes and material points has been completed for a 
+ * timestep.
  * ----------------------------------------------------------------------- */
 
 /* -*- c++ -*- ----------------------------------------------------------
@@ -42,7 +45,6 @@ class FixLME : public Fix {
   int setmask(); // make it preforce 
   virtual void init(); // Primarily to set some flags and prevent errors
   void init_list(int id, NeighList *ptr);
-  //void pre_exchange(); // Adds or deletes atoms before neighbour build steps, and after initial integration
   void setup(int); // Does stuff prior to first integration -> it will look nearly identical to preforce
   virtual void pre_force(int vflag); // Where all the computation takes place
 
@@ -50,17 +52,19 @@ class FixLME : public Fix {
   double memory_usage(); // Computes memory usage by this fix
   void grow_arrays(int);
   void copy_arrays(int, int, int);
-  //int pack_exchange(int, double *);
-  //int unpack_exchange(int, double *);
-  //int pack_restart(int, double *);
-  //void unpack_restart(int,int);
-  //int size_restart(int);
-  //int maxsize_restart();
+  int pack_exchange(int, double *);
+  int unpack_exchange(int, double *);
+  int pack_restart(int, double *);
+  void unpack_restart(int,int);
+  int size_restart(int);
+  int maxsize_restart();
 
 
  protected:
-  double **p; // Shape function evaluations
-  double **gradp; // Gradient of shape functions (Should I use 3D array?)
+  //double **p; // Shape function evaluations
+  //double **gradp; // Gradient of shape functions (Should I use 3D array?)
+
+
   double gamma, h; // Locality parameter, average spacing
   int typeND, typeMP; // group indexes of nodal and material point groups 
   class NeighList *list;
@@ -68,8 +72,8 @@ class FixLME : public Fix {
   // I will likely need storage for neighbour list stuff.
   int nmax; // Maximum number of owned+ghost atoms in arrays on this proc
   int maxpartner; // The maximum partners of any atom on this proc
-  int *npartner; // # of touching partners of each atom
-  tagint **partner; // global atom IDs for the partners
+  //int *npartner; // # of touching partners of each atom
+  //tagint **partner; // global atom IDs for the partners
 
   // Actually, don't think I need this
   //tagint **correlation_index; // index that a node holds in the partner list of an mp

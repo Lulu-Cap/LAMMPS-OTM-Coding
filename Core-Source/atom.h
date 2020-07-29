@@ -100,8 +100,8 @@ class Atom : protected Pointers {
   // USER-OTM package
   double **p; // Shape functions
   double **gradp; // Gradient of Shape functions
-  double *npartner; // number of nodal partners per mp
-  double **partner; // nodal partner IDs
+  int *npartner; // number of nodal partners per mp
+  int **partner; // nodal partner IDs
 
   // USER-DPD package
 

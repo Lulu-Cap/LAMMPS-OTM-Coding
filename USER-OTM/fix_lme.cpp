@@ -29,7 +29,6 @@
 #include <cstring>
 #include <cstdlib>
 #include <cmath>
-//#include <Eigen/Eigen>
 #include <mpi.h>
 #include "atom.h"
 #include "comm.h"
@@ -48,15 +47,9 @@
 #include "region.h"
 #include "update.h"
 #include "variable.h"
-//#include "otm_math.h"
-//#include "otm_kernels.h" //cut out
 
-//using namespace Eigen;
-using namespace LAMMPS_NS;
 using namespace FixConst;
-//using namespace SMD_Kernels; // Can be cut out 
 using namespace std;
-//using namespace SMD_Math;
 #define DELTA 16384 // what?
 #define TOL 1.0e-16 // machine precision used for cutoff radii
 #define LMDA_TOL_SQ 1.0e-8*1.0e-8
@@ -66,7 +59,6 @@ TO-DO:
 --> Adjust functions to take multiple atom types for both nodes
     and material points. Important for multiphase/FSI/contact 
     systems
---> Eliminate reliance on Eigen in this file (completed)
 */
 
 
@@ -160,13 +152,6 @@ for (index = 3; index < narg; index +=2) {
 FixLME::~FixLME()
 {
   if (copymode) return; // What is this?
-
-  // /* Caution: memory class may need additional overloads for ragged 3D tensors in the case of the gradp values */
-  // memory->destroy(npartner);
-  // memory->destroy(partner);
-  // memory->destroy(p);
-  // memory->destroy(gradp); // Must adjust memory->destroy for ragged 3D arrays if I use that approach (which would be more readable)
-
 }
 
 /* ----------------------------------------------------------------------
@@ -478,10 +463,6 @@ void FixLME::setup(int vflag)
     } // mp test
   } // mp loop
 
-  // DEBUG
-  //printf("\n\nTimestep = %lli\n-------------------\n",update->ntimestep);
-
-
   // Adjust the below statistics --> print shape function statistics to the terminal
   
   // bond statistics
@@ -750,19 +731,6 @@ void FixLME::pre_force(int vflag)
                   (lambda0[2]-lambda1[2])*(lambda0[2]-lambda1[2]);
         }
 
-        // // DEBUG
-        // printf("\nlambda0 = (%e %e %e)\n"
-        //          "lambda1 = (%e %e %e)\n"
-        //          "dLambda^2 = %e\n",
-        //          lambda0[0],lambda0[1],lambda0[2],lambda1[0],lambda1[1],lambda1[2],norm_sq);
-
-        // // DEBUG
-        // printf("jnum = %i\n",jnum);
-        // for (jj = 0; jj < jnum; jj++) {
-        //   j = jlist[jj];
-        //   printf("%i\t%lf\t%lf\t%lf\n",j,x[j][0],x[j][1],x[j][2]);
-        // }
-
       } while (norm_sq > LMDA_TOL_SQ); // Convergence while loop
       
       // Spatial Gradient of shape functions
@@ -782,26 +750,8 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj+2] += p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
       }
-
-      // Transfer to atom variables ()
-      for (jj = 0; jj < jnum; jj++) {
-        // atom->npartner[i] = npartner[i];
-        // atom->partner[i][jj] = partner[i][jj];
-        // atom->p[i][jj] = p[i][jj];
-        // for (int d = 0; d < dim; d++) atom->gradp[i][dim*jj+d] = gradp[i][dim*jj+d];
-        // DEBUG
-        // printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
-        //         i,atom->partner[i][jj],atom->p[i][jj],atom->gradp[i][dim*jj],atom->gradp[i][dim*jj+1]);
-        // printf("Material Point: %i\tPartner: %i\tP: %e\tgradP: %e %e\n",
-        //         i,partner[i][jj],p[i][jj],gradp[i][dim*jj],gradp[i][dim*jj+1]);
-      }
-    
     } // mp test
   } // mp loop
-
-  // DEBUG
-  // printf("\n\nTimestep = %lli\n-------------------\n",update->ntimestep);
-  printf("\n\nLME x[161] = (%e,%e,%e)\n\n",x[161][0],x[161][1],x[161][2]);
 
   // Adjust the below statistics --> print shape function statistics to the terminal
   

@@ -87,6 +87,8 @@ AtomVecOTM::AtomVecOTM(LAMMPS *lmp) :
         atom->gradp_flag = 1;
         atom->npartner_flag = 1;
         atom->partner_flag = 1;
+        atom->def_grad_flag = 1;
+        atom->def_rate_flag = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -144,6 +146,8 @@ void AtomVecOTM::grow(int n) {
         gradp = memory->grow(atom->gradp, nmax, dim*NEIGH_MAX, "atom:gradp");
         npartner = memory->grow(atom->npartner, nmax, "atom:npartner");
         partner = memory->grow(atom->partner, nmax, NEIGH_MAX, "atom:partner");
+        def_grad = memory->grow(atom->def_grad, nmax, dim*dim, "atom:def_grad");
+        def_rate = memory->grow(atom->def_rate, nmax, dim*dim, "atom:def_rate");
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -183,6 +187,8 @@ void AtomVecOTM::grow_reset() {
         gradp = atom->gradp;
         npartner = atom->npartner;
         partner = atom->partner;
+        def_grad = atom->def_grad;
+        def_rate = atom->def_rate;
 }
 
 /* ----------------------------------------------------------------------
@@ -236,6 +242,13 @@ void AtomVecOTM::copy(int i, int j, int delflag) {
                         gradp[j][dim*k+d] = gradp[i][dim*k+d];
         }
 
+        for (int ii = 0; ii < dim; ii++) {
+          for (int jj = 0; jj < dim; jj++) {
+            def_grad[j][ii*dim+jj] = def_grad[i][ii*dim+jj];
+            def_rate[j][ii*dim+jj] = def_rate[i][ii*dim+jj];
+          }
+        }
+        
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
                         modify->fix[atom->extra_grow[iextra]]->copy_arrays(i, j, delflag);
@@ -807,6 +820,13 @@ int AtomVecOTM::pack_exchange(int i, double *buf) {
                         buf[m++] = gradp[i][dim*k+d];
         } // 40 + (2+dim)*NEIGH_MAX
 
+        for (int ii = 0; ii < dim; ii++) {
+          for (int jj = 0; jj < dim; jj++) {
+            buf[m++] = def_grad[i][dim*ii+jj];
+            buf[m++] = def_rate[i][dim*ii+jj];
+          }
+        } // 40 + (2+dim)*NEIGH_MAX + 2*dim*dim
+
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
                         m += modify->fix[atom->extra_grow[iextra]]->pack_exchange(i, &buf[m]);
@@ -870,6 +890,13 @@ int AtomVecOTM::unpack_exchange(double *buf) {
                 for (int d = 0; d < dim; d++) 
                         gradp[nlocal][dim*k+d] = buf[m++];
         } // 41 + (2+dim)*NEIGH_MAX
+
+        for (int ii = 0; ii < dim; ii++) {
+          for (int jj = 0; jj < dim; jj++) {
+            def_grad[nlocal][dim*ii+jj] = buf[m++];
+            def_rate[nlocal][dim*ii+jj] = buf[m++];
+          }
+        } // 41 + (2+dim)*NEIGH_MAX + 2*dim*dim
 
         if (atom->nextra_grow)
                 for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -952,6 +979,13 @@ int AtomVecOTM::pack_restart(int i, double *buf) {
                         buf[m++] = gradp[i][dim*k+d];
         } // 42 + (2+dim)*NEIGH_MAX
 
+        for (int ii = 0; ii < dim; ii++) {
+          for (int jj = 0; jj < dim; jj++) {
+            buf[m++] = def_grad[i][dim*ii+jj];
+            buf[m++] = def_rate[i][dim*ii+jj];
+          }
+        } // 42 + (2+dim)*NEIGH_MAX + 2*dim*dim
+
         if (atom->nextra_restart)
                 for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
                         m += modify->fix[atom->extra_restart[iextra]]->pack_restart(i, &buf[m]);
@@ -1020,6 +1054,13 @@ int AtomVecOTM::unpack_restart(double *buf) {
                 for (int d = 0; d < dim; d++) 
                         gradp[nlocal][dim*k+d] = buf[m++];
         } // 42 + (2+dim)*NEIGH_MAX
+
+        for (int ii = 0; ii < dim; ii++) {
+          for (int jj = 0; jj < dim; jj++) {
+            def_grad[nlocal][dim*ii+jj] = buf[m++];
+            def_rate[nlocal][dim*ii+jj] = buf[m++];
+          }
+        } // 42 + (2+dim)*NEIGH_MAX + 2*dim*dim
 
         //printf("nlocal in restart is %d\n", nlocal);
 
@@ -1098,7 +1139,20 @@ void AtomVecOTM::create_atom(int itype, double *coord) {
                 for (int d = 0; d < dim; d++) 
                         gradp[nlocal][dim*k+d] = 0.0;
         }
-        
+        for (int ii = 0; ii < dim; ii++) {
+                def_grad[nlocal][ii] = 0.0;
+                def_rate[nlocal][ii] = 0.0;
+        }
+        if (dim == 2) {
+                def_grad[nlocal][0] = 1.0;
+                def_grad[nlocal][3] = 1.0;
+        }
+        else if (dim == 3) {
+                def_grad[nlocal][0] = 1.0;
+                def_grad[nlocal][4] = 1.0;
+                def_grad[nlocal][8] = 1.0;
+        }
+
         atom->nlocal++;
 }
 
@@ -1184,7 +1238,20 @@ void AtomVecOTM::data_atom(double *coord, imageint imagetmp, char **values) {
                 for (int d = 0; d < dim; d++)
                         gradp[nlocal][dim*k+d] = 0.0;
         }
-
+        for (int ii = 0; ii < dim; ii++) {
+                def_grad[nlocal][ii] = 0.0;
+                def_rate[nlocal][ii] = 0.0;
+        }
+        if (dim == 2) {
+                def_grad[nlocal][0] = 1.0;
+                def_grad[nlocal][3] = 1.0;
+        }
+        else if (dim == 3) {
+                def_grad[nlocal][0] = 1.0;
+                def_grad[nlocal][4] = 1.0;
+                def_grad[nlocal][8] = 1.0;
+        }
+        
         atom->nlocal++;
 }
 
@@ -1376,13 +1443,17 @@ bigint AtomVecOTM::memory_usage() {
         // USER-OTM
         int dim = domain->dimension;
         if (atom->memcheck("npartner"))
-                bytes += memory->usage(npartner,nmax);
+                bytes += memory->usage(npartner, nmax);
         if (atom->memcheck("partner"))
                 bytes += memory->usage(partner, nmax, NEIGH_MAX);
         if (atom->memcheck("p"))
                 bytes += memory->usage(p, nmax, NEIGH_MAX);
         if (atom->memcheck("gradp"))
-                bytes += memory->usage(gradp,nmax, dim*NEIGH_MAX);
+                bytes += memory->usage(gradp, nmax, dim*NEIGH_MAX);
+        if (atom->memcheck("def_grad"))
+                bytes += memory->usage(def_grad, nmax, dim*dim);
+        if (atom->memcheck("def_rate"))
+                bytes += memory->usage(def_rate, nmax, dim*dim);
 
         return bytes;
 }

@@ -61,10 +61,6 @@ class FixLME : public Fix {
 
 
  protected:
-  //double **p; // Shape function evaluations
-  //double **gradp; // Gradient of shape functions (Should I use 3D array?)
-
-
   double gamma, h; // Locality parameter, average spacing
   int typeND, typeMP; // group indexes of nodal and material point groups 
   class NeighList *list;
@@ -72,24 +68,7 @@ class FixLME : public Fix {
   // I will likely need storage for neighbour list stuff.
   int nmax; // Maximum number of owned+ghost atoms in arrays on this proc
   int maxpartner; // The maximum partners of any atom on this proc
-  //int *npartner; // # of touching partners of each atom
-  //tagint **partner; // global atom IDs for the partners
 
-  // Actually, don't think I need this
-  //tagint **correlation_index; // index that a node holds in the partner list of an mp
-
- 
-/*  protected:
-  double xvalue,yvalue,zvalue;
-  int varflag,iregion;
-  char *xstr,*ystr,*zstr;
-  char *idregion;
-  int xvar,yvar,zvar,xstyle,ystyle,zstyle;
-  double foriginal[3],foriginal_all[3];
-  int force_flag;
-
-  int maxatom;
-  double **sforce; */
 };
 
 }

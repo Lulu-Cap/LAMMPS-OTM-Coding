@@ -98,10 +98,13 @@ class Atom : protected Pointers {
   double *damage;
 
   // USER-OTM package
+
   double **p; // Shape functions
   double **gradp; // Gradient of Shape functions
   int *npartner; // number of nodal partners per mp
   int **partner; // nodal partner IDs
+  double **def_grad; // Deformation gradient tensor
+  double **def_rate; // Deformation rate tensor
 
   // USER-DPD package
 
@@ -178,10 +181,13 @@ class Atom : protected Pointers {
   int damage_flag;
 
   // USER-OTM package
+  
   int p_flag;
   int gradp_flag;
   int npartner_flag;
   int partner_flag;
+  int def_grad_flag;
+  int def_rate_flag;
   
   // Peridynamics scale factor, used by dump cfg
 

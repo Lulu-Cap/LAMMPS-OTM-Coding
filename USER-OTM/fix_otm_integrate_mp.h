@@ -8,7 +8,12 @@
  * British Columbia, Canada
  * 
  * Purpose: This fix will move the material points after the nodes have 
- * been repositioned
+ * been repositioned. It will then update the following properties of the 
+ * material points:
+ *    - Deformation Gradient tensor, F
+ *    - Deformation Rate tensor, Fdot
+ *    - Volume/density, v and rho
+ * More properties may be added as necessary.
  * ----------------------------------------------------------------------- */
 
 /* -*- c++ -*- ----------------------------------------------------------
@@ -40,30 +45,23 @@ namespace LAMMPS_NS {
 class FixOTMIntegrateMP : public Fix {
  public:
   FixOTMIntegrateMP(class LAMMPS *, int, char **); // Parse input parameters, check for errors, add callback, initialize values and pointers
-  virtual ~FixOTMIntegrateMP() {return;}; 
-  int setmask(); // make it preforce 
+  virtual ~FixOTMIntegrateMP(); 
+  int setmask();
   virtual void init(); // Primarily to set some flags and prevent errors
   void init_list(int id, NeighList *ptr);
   void post_integrate();
   //void initial_integrate(int);
-  void reset_dt() {return;};
+
+  void grow_arrays(int);
+  
+  double determinant(double (*)[3], int);
+  //void matrix_mult(double (*)[3], double (*)[3], double (*)[3], int);
+  //void matrix_to_vec(double *, double (*)[3], int);
+  //void vec_to_matrix(double *, double (*)[3], int);
 
  protected:
- 
- // I may not need most of these variables actually... Maybe none of them but *list
-//  double **x; // position of particles
-
-//   double **p; // Shape function evaluations
-//   double **gradp; // Gradient of shape functions (Should I use 3D array?)
   int typeND, typeMP; // group indexes of nodal and material point groups 
   class NeighList *list;
-
-  // I will likely need storage for neighbour list stuff.
-//   int nmax; // Maximum number of owned+ghost atoms in arrays on this proc
-//   int maxpartner; // The maximum partners of any atom on this proc
-//   int *npartner; // # of touching partners of each atom
-//   tagint **partner; // global atom IDs for the partners
-
 };
 
 }

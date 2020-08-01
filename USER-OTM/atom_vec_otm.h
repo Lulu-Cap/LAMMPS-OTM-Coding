@@ -99,6 +99,10 @@ class AtomVecOTM : public AtomVec {
    int **partner; // Order of partners
    double **p; // Shape function evaluations
    double **gradp; // Shape function derivatives
+
+   double **def_grad; // Deformation Gradient tensor, F
+   double **def_rate; // Deformation rate tensor, Fdot
+
 };
 
 }

@@ -75,9 +75,9 @@ variable 	h equal 2.01*${l0} # SPH smoothing kernel radius
 variable 	vol_one equal ${l0}^2 # volume of one particle -- assuming unit thickness
 variable 	skin equal ${h} # Verlet list range
 neighbor        ${skin} bin
-set 		group tlsph volume ${vol_one}
-set         group tlsph smd/mass/density ${rho}
-set 		group tlsph diameter ${h} # set SPH kernel radius
+set 		group all volume ${vol_one}
+set         group all smd/mass/density ${rho}
+set 		group all diameter ${h} # set SPH kernel radius
 
 ####################################################################################################
 # DEFINE VELOCITY BOUNDARY CONDITIONS
@@ -116,13 +116,12 @@ pair_coeff 		1 2 smd/hertz 0 # If I use 'none' here it will not build the neighb
 ####################################################################################################
 fix             dtfix tlsph smd/adjust_dt 0.1 # dynamically adjust time increment every step
 fix             integration_fix tlsph smd/integrate_tlsph
-
-# Do not integrate mps for now --> let them be constant position
+fix             integration_mp all otm/integrate_mp mat_points 2 nodes 1
 
 ####################################################################################################
 # SPECIFY TRAJECTORY OUTPUT
 ####################################################################################################
-compute         dt_atom all smd/tlsph/dt
+compute     dt_atom all smd/tlsph/dt
 compute 	p all smd/plastic/strain
 compute 	epsdot all smd/plastic/strain/rate
 compute 	S all smd/tlsph/stress # Cauchy stress tensor

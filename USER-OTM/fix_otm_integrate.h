@@ -56,9 +56,9 @@ class FixOTMIntegrate : public Fix {
   void reset_dt (void);
   
   double determinant(double (*)[3], int);
-  //void matrix_mult(double (*)[3], double (*)[3], double (*)[3], int);
-  //void matrix_to_vec(double *, double (*)[3], int);
-  //void vec_to_matrix(double *, double (*)[3], int);
+  void matrix_mult(double (*)[3], double (*)[3], double (*)[3], int);
+  void matrix_to_vec(double *, double (*)[3], int);
+  void vec_to_matrix(double *, double (*)[3], int);
 
  protected:
   int typeND, typeMP; // group indexes of nodal and material point groups 

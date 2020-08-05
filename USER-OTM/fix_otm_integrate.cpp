@@ -309,59 +309,59 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
       volume[i] *= detFincr;
 
 
-      // DEBUG: keeps fucking up on compile
-      //vec_to_matrix(F[i],Fold,dim);
-      //matrix_mult(Fincr,Fold,Fnew,dim);
-      //matrix_to_vec(F[i],Fnew,dim);
+      // DEBUG
+      vec_to_matrix(F[i],Fold,dim);
+      matrix_mult(Fincr,Fold,Fnew,dim);
+      matrix_to_vec(F[i],Fnew,dim);
 
-      if (dim == 2) {
-        Fold[0][0] = F[i][0];
-        Fold[0][1] = F[i][1];
-        Fold[1][0] = F[i][2];
-        Fold[1][1] = F[i][3];
+      // if (dim == 2) {
+      //   Fold[0][0] = F[i][0];
+      //   Fold[0][1] = F[i][1];
+      //   Fold[1][0] = F[i][2];
+      //   Fold[1][1] = F[i][3];
 
-        Fnew[0][0] = Fincr[0][0]*Fold[0][0] + Fincr[0][1]*Fold[1][0];
-        Fnew[0][1] = Fincr[0][0]*Fold[0][1] + Fincr[0][1]*Fold[1][1];
-        Fnew[1][0] = Fincr[1][0]*Fold[0][0] + Fincr[1][1]*Fold[1][0];
-        Fnew[1][1] = Fincr[1][0]*Fold[0][1] + Fincr[1][1]*Fold[1][1];
+      //   Fnew[0][0] = Fincr[0][0]*Fold[0][0] + Fincr[0][1]*Fold[1][0];
+      //   Fnew[0][1] = Fincr[0][0]*Fold[0][1] + Fincr[0][1]*Fold[1][1];
+      //   Fnew[1][0] = Fincr[1][0]*Fold[0][0] + Fincr[1][1]*Fold[1][0];
+      //   Fnew[1][1] = Fincr[1][0]*Fold[0][1] + Fincr[1][1]*Fold[1][1];
 
-        F[i][0] = Fnew[0][0];
-        F[i][1] = Fnew[0][1];
-        F[i][2] = Fnew[1][0];
-        F[i][3] = Fnew[1][1];
+      //   F[i][0] = Fnew[0][0];
+      //   F[i][1] = Fnew[0][1];
+      //   F[i][2] = Fnew[1][0];
+      //   F[i][3] = Fnew[1][1];
 
-      }
-      else if (dim == 3) {
-        Fold[0][0] = F[i][0];
-        Fold[0][1] = F[i][1];
-        Fold[0][2] = F[i][2];
-        Fold[1][0] = F[i][3];
-        Fold[1][1] = F[i][4];
-        Fold[1][2] = F[i][5];
-        Fold[2][0] = F[i][6];
-        Fold[2][1] = F[i][7];
-        Fold[2][2] = F[i][8];
+      // }
+      // else if (dim == 3) {
+      //   Fold[0][0] = F[i][0];
+      //   Fold[0][1] = F[i][1];
+      //   Fold[0][2] = F[i][2];
+      //   Fold[1][0] = F[i][3];
+      //   Fold[1][1] = F[i][4];
+      //   Fold[1][2] = F[i][5];
+      //   Fold[2][0] = F[i][6];
+      //   Fold[2][1] = F[i][7];
+      //   Fold[2][2] = F[i][8];
 
-        Fnew[0][0] = Fincr[0][0]*Fold[0][0] + Fincr[0][1]*Fold[1][0] + Fincr[0][2]*Fold[2][0];
-        Fnew[0][1] = Fincr[0][0]*Fold[0][1] + Fincr[0][1]*Fold[1][1] + Fincr[0][2]*Fold[2][1];
-        Fnew[0][2] = Fincr[0][0]*Fold[0][2] + Fincr[0][1]*Fold[1][2] + Fincr[0][2]*Fold[2][2];
-        Fnew[1][0] = Fincr[1][0]*Fold[0][0] + Fincr[1][1]*Fold[1][0] + Fincr[1][2]*Fold[2][0];
-        Fnew[1][1] = Fincr[1][0]*Fold[0][1] + Fincr[1][1]*Fold[1][1] + Fincr[1][2]*Fold[2][1];
-        Fnew[1][2] = Fincr[1][0]*Fold[0][2] + Fincr[1][1]*Fold[1][2] + Fincr[1][2]*Fold[2][2];
-        Fnew[2][0] = Fincr[2][0]*Fold[0][0] + Fincr[2][1]*Fold[1][0] + Fincr[2][2]*Fold[2][0];
-        Fnew[2][1] = Fincr[2][0]*Fold[0][1] + Fincr[2][1]*Fold[1][1] + Fincr[2][2]*Fold[2][1];
-        Fnew[2][2] = Fincr[2][0]*Fold[0][2] + Fincr[2][1]*Fold[1][2] + Fincr[2][2]*Fold[2][2];
+      //   Fnew[0][0] = Fincr[0][0]*Fold[0][0] + Fincr[0][1]*Fold[1][0] + Fincr[0][2]*Fold[2][0];
+      //   Fnew[0][1] = Fincr[0][0]*Fold[0][1] + Fincr[0][1]*Fold[1][1] + Fincr[0][2]*Fold[2][1];
+      //   Fnew[0][2] = Fincr[0][0]*Fold[0][2] + Fincr[0][1]*Fold[1][2] + Fincr[0][2]*Fold[2][2];
+      //   Fnew[1][0] = Fincr[1][0]*Fold[0][0] + Fincr[1][1]*Fold[1][0] + Fincr[1][2]*Fold[2][0];
+      //   Fnew[1][1] = Fincr[1][0]*Fold[0][1] + Fincr[1][1]*Fold[1][1] + Fincr[1][2]*Fold[2][1];
+      //   Fnew[1][2] = Fincr[1][0]*Fold[0][2] + Fincr[1][1]*Fold[1][2] + Fincr[1][2]*Fold[2][2];
+      //   Fnew[2][0] = Fincr[2][0]*Fold[0][0] + Fincr[2][1]*Fold[1][0] + Fincr[2][2]*Fold[2][0];
+      //   Fnew[2][1] = Fincr[2][0]*Fold[0][1] + Fincr[2][1]*Fold[1][1] + Fincr[2][2]*Fold[2][1];
+      //   Fnew[2][2] = Fincr[2][0]*Fold[0][2] + Fincr[2][1]*Fold[1][2] + Fincr[2][2]*Fold[2][2];
 
-        F[i][0] = Fnew[0][0];
-        F[i][1] = Fnew[0][1];
-        F[i][2] = Fnew[0][2];
-        F[i][3] = Fnew[1][0];
-        F[i][4] = Fnew[1][1];
-        F[i][5] = Fnew[1][2];
-        F[i][6] = Fnew[2][0];
-        F[i][7] = Fnew[2][1];
-        F[i][8] = Fnew[2][2];
-      }
+      //   F[i][0] = Fnew[0][0];
+      //   F[i][1] = Fnew[0][1];
+      //   F[i][2] = Fnew[0][2];
+      //   F[i][3] = Fnew[1][0];
+      //   F[i][4] = Fnew[1][1];
+      //   F[i][5] = Fnew[1][2];
+      //   F[i][6] = Fnew[2][0];
+      //   F[i][7] = Fnew[2][1];
+      //   F[i][8] = Fnew[2][2];
+      // }
 
       for (d1 = 0; d1 < dim; d1++) {
         v[i][d1] = (x[i][d1] - x0[d1])/dt; // Backwards 1st order velocity
@@ -489,86 +489,87 @@ double FixOTMIntegrate::determinant(double F[3][3], int dim)
 
   Should overload later for use with double ** matrices
 ------------------------------------------------------------------------- */
-// void matrix_mult(double A[3][3], double B[3][3], double C[3][3], int dim)
-// {
-//   if (dim == 2) {
-//     C[0][0] = A[0][0]*B[0][0] + A[0][1]*B[1][0];
-//     C[0][1] = A[0][0]*B[0][1] + A[0][1]*B[1][1];
-//     C[1][0] = A[1][0]*B[0][0] + A[1][1]*B[1][0];
-//     C[1][1] = A[1][0]*B[0][1] + A[1][1]*B[1][1];
-//   }
-//   else if (dim == 3) {
-//     C[0][0] = A[0][0]*B[0][0] + A[0][1]*B[1][0] + A[0][2]*B[2][0];
-//     C[0][1] = A[0][0]*B[0][1] + A[0][1]*B[1][1] + A[0][2]*B[2][1];
-//     C[0][2] = A[0][0]*B[0][2] + A[0][1]*B[1][2] + A[0][2]*B[2][2];
-//     C[1][0] = A[1][0]*B[0][0] + A[1][1]*B[1][0] + A[1][2]*B[2][0];
-//     C[1][1] = A[1][0]*B[0][1] + A[1][1]*B[1][1] + A[1][2]*B[2][1];
-//     C[1][2] = A[1][0]*B[0][2] + A[1][1]*B[1][2] + A[1][2]*B[2][2];
-//     C[2][0] = A[2][0]*B[0][0] + A[2][1]*B[1][0] + A[2][2]*B[2][0];
-//     C[2][1] = A[2][0]*B[0][1] + A[2][1]*B[1][1] + A[2][2]*B[2][1];
-//     C[2][2] = A[2][0]*B[0][2] + A[2][1]*B[1][2] + A[2][2]*B[2][2];
-//   }
-//
-//   return;
-// }
+void FixOTMIntegrate::matrix_mult(double A[3][3], double B[3][3], double C[3][3], int dim)
+{
+  if (dim == 2) {
+    C[0][0] = A[0][0]*B[0][0] + A[0][1]*B[1][0];
+    C[0][1] = A[0][0]*B[0][1] + A[0][1]*B[1][1];
+    C[1][0] = A[1][0]*B[0][0] + A[1][1]*B[1][0];
+    C[1][1] = A[1][0]*B[0][1] + A[1][1]*B[1][1];
+  }
+  else if (dim == 3) {
+    C[0][0] = A[0][0]*B[0][0] + A[0][1]*B[1][0] + A[0][2]*B[2][0];
+    C[0][1] = A[0][0]*B[0][1] + A[0][1]*B[1][1] + A[0][2]*B[2][1];
+    C[0][2] = A[0][0]*B[0][2] + A[0][1]*B[1][2] + A[0][2]*B[2][2];
+    C[1][0] = A[1][0]*B[0][0] + A[1][1]*B[1][0] + A[1][2]*B[2][0];
+    C[1][1] = A[1][0]*B[0][1] + A[1][1]*B[1][1] + A[1][2]*B[2][1];
+    C[1][2] = A[1][0]*B[0][2] + A[1][1]*B[1][2] + A[1][2]*B[2][2];
+    C[2][0] = A[2][0]*B[0][0] + A[2][1]*B[1][0] + A[2][2]*B[2][0];
+    C[2][1] = A[2][0]*B[0][1] + A[2][1]*B[1][1] + A[2][2]*B[2][1];
+    C[2][2] = A[2][0]*B[0][2] + A[2][1]*B[1][2] + A[2][2]*B[2][2];
+  }
 
-// /* ----------------------------------------------------------------------
-//   Takes a vec of length dim^2 in the form of a pointer and returns a 
-//   matrix populated by its values
-//
-//   Overload this later
-// ------------------------------------------------------------------------- */
-// void vec_to_matrix(double *a, double B[3][3], int dim)
-// {
-//   if (dim == 2) {
-//     B[0][0] = a[0];
-//     B[0][1] = a[1];
-//     B[1][0] = a[2];
-//     B[1][1] = a[3];
-//   }
-//   else if (dim == 3) {
-//     B[0][0] = a[0];
-//     B[0][1] = a[1];
-//     B[0][2] = a[2];
-//     B[1][0] = a[3];
-//     B[1][1] = a[4];
-//     B[1][2] = a[5];
-//     B[2][0] = a[6];
-//     B[2][1] = a[7];
-//     B[2][2] = a[8];
-//   }
-//
-//   return;
-// }
+  return;
+}
 
-// /* ----------------------------------------------------------------------
-//   Takes a dim x dim matrix and writes the values to a vec of length dim^2 
-//
-//   Overload this later
-// ------------------------------------------------------------------------- */
-// void matrix_to_vec(double *a, double B[3][3], int dim)
-// {
-//   if (dim == 2) {
-//     a[0] = B[0][0];
-//     a[1] = B[0][1];
-//     a[2] = B[1][0];
-//     a[3] = B[1][1];
-//   }
-//   else if (dim == 3) {
-//     a[0] = B[0][0];
-//     a[1] = B[0][1];
-//     a[2] = B[0][2];
-//     a[3] = B[1][0];
-//     a[4] = B[1][1];
-//     a[5] = B[1][2];
-//     a[6] = B[2][0];
-//     a[7] = B[2][1];
-//     a[8] = B[2][2];
-//   }
-//
-//   return;
-// }
+/* ----------------------------------------------------------------------
+  Takes a vec of length dim^2 in the form of a pointer and returns a 
+  matrix populated by its values
 
+  Overload this later
+------------------------------------------------------------------------- */
+void FixOTMIntegrate::vec_to_matrix(double *a, double B[3][3], int dim)
+{
+  if (dim == 2) {
+    B[0][0] = a[0];
+    B[0][1] = a[1];
+    B[1][0] = a[2];
+    B[1][1] = a[3];
+  }
+  else if (dim == 3) {
+    B[0][0] = a[0];
+    B[0][1] = a[1];
+    B[0][2] = a[2];
+    B[1][0] = a[3];
+    B[1][1] = a[4];
+    B[1][2] = a[5];
+    B[2][0] = a[6];
+    B[2][1] = a[7];
+    B[2][2] = a[8];
+  }
+
+  return;
+}
+
+/* ----------------------------------------------------------------------
+  Takes a dim x dim matrix and writes the values to a vec of length dim^2 
+
+  Overload this later
+------------------------------------------------------------------------- */
+void FixOTMIntegrate::matrix_to_vec(double *a, double B[3][3], int dim)
+{
+  if (dim == 2) {
+    a[0] = B[0][0];
+    a[1] = B[0][1];
+    a[2] = B[1][0];
+    a[3] = B[1][1];
+  }
+  else if (dim == 3) {
+    a[0] = B[0][0];
+    a[1] = B[0][1];
+    a[2] = B[0][2];
+    a[3] = B[1][0];
+    a[4] = B[1][1];
+    a[5] = B[1][2];
+    a[6] = B[2][0];
+    a[7] = B[2][1];
+    a[8] = B[2][2];
+  }
+
+  return;
+}
+
+/* ---------------------------------------------------------------------- */
 void FixOTMIntegrate::reset_dt (void) 
 {
   dtv = update->dt;

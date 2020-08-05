@@ -115,8 +115,7 @@ pair_coeff 		1 2 smd/hertz 0 # If I use 'none' here it will not build the neighb
 # TIME INTEGRATION
 ####################################################################################################
 fix             dtfix tlsph smd/adjust_dt 0.1 # dynamically adjust time increment every step
-fix             integration_fix tlsph smd/integrate_tlsph
-fix             integration_mp all otm/integrate_mp mat_points 2 nodes 1
+fix             integration all otm/integrate mat_points 2 nodes 1
 
 ####################################################################################################
 # SPECIFY TRAJECTORY OUTPUT

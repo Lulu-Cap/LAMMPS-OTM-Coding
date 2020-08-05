@@ -79,19 +79,14 @@ int index, ii, i, j;
 int ntypes = atom->ntypes;
 char *atom_style = atom->atom_style;
 
-if (strcmp(atom_style, "otm") != 0) {
-  error->all(FLERR, "Illegal atom_style for material point integration");
-}
-if (narg != 7) {
-  error->all(FLERR,"Illegal fix otm/integrate_mp command"); // Must have 9 args 
-                 //(may include option for more later, so multiple groups can easily interact)
-}
-if (atom->map_style == 0){
+if (strcmp(atom_style, "otm") != 0) 
+  error->all(FLERR, "Illegal atom_style for material point integration. Use OTM style");
+if (narg != 7) 
+  error->all(FLERR,"Illegal fix otm/integrate_mp command. Incorrect # of args"); // StC
+if (atom->map_style == 0)
   error->all(FLERR, "LME Shape functions require an atom map to evaluate, see atom modify");
-}
-if (force->newton_pair) {
+if (force->newton_pair) 
   error->all(FLERR, "OTM style cannot be run with newton on"); // Wouldn't make any sense
-}
 
 // Parse the input arguments
 for (index = 3; index < narg; index +=2) {
@@ -102,7 +97,7 @@ for (index = 3; index < narg; index +=2) {
   }
   else if (strcmp(arg[index],"nodes") == 0) {
     // Find atom type of nodes
-    typeND = force->numeric(FLERR, arg[index+1]);
+    typeND = force->numeric(FLERR,arg[index+1]);
     if (typeND > ntypes) error->all(FLERR,"nodes type does not exist");
   }
   else {
@@ -136,17 +131,17 @@ for (index = 3; index < narg; index +=2) {
   }
 
   //DEBUG
-  double **x = atom->x;
-  double **v = atom->v;
-  printf("\n\nx = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
-  printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
-  printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
-  printf("F = |%e %e %e|\n"
-         "    |%e %e %e|\n"
-         "    |%e %e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3],F[216][4],F[216][5],F[216][6],F[216][7],F[216][8]);
-    printf("Fdot = |%e %e %e|\n"
-           "       |%e %e %e|\n"
-           "       |%e %e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3],Fdot[216][4],Fdot[216][5],Fdot[216][6],Fdot[216][7],Fdot[216][8]);
+  // double **x = atom->x;
+  // double **v = atom->v;
+  // printf("\n\nx = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
+  // printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
+  // printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
+  // printf("F = |%e %e %e|\n"
+  //        "    |%e %e %e|\n"
+  //        "    |%e %e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3],F[216][4],F[216][5],F[216][6],F[216][7],F[216][8]);
+  //   printf("Fdot = |%e %e %e|\n"
+  //          "       |%e %e %e|\n"
+  //          "       |%e %e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3],Fdot[216][4],Fdot[216][5],Fdot[216][6],Fdot[216][7],Fdot[216][8]);
 
 }
 
@@ -244,7 +239,6 @@ void FixOTMIntegrateMP::post_integrate(void)
   inum = list->inum; // # of atoms neighbours are stored for
   ilist = list->ilist; // local indices of I atom
 
-  //grow_arrays(atom->nmax); // Unsure how this should be approached tbh. Will this delete the previous stuff? I think it will. //DEBUG
 
   // Main loop: performs both x and v updates
   for (ii = 0; ii < inum; ii++) { // for every atom w/neighbours
@@ -342,35 +336,35 @@ void FixOTMIntegrateMP::post_integrate(void)
       }
 
       //DEBUG
-      if (dim==2) {
-      printf("________________________\n"
-             "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
-      printf("x = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
-      printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
-      printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
-      printf("Fincr = |%e %e|\n"
-             "        |%e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[1][0],Fincr[1][1]);
-      printf("F = |%e %e|\n"
-             "    |%e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3]);
-      printf("Fdot = |%e %e|\n"
-             "       |%e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3]);
-      }
-      else if (dim==3) {
-      printf("________________________\n"
-             "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
-      printf("x = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
-      printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
-      printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
-      printf("Fincr = |%e %e %e|\n"
-             "        |%e %e %e|\n"
-             "        |%e %e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[0][2],Fincr[1][0],Fincr[1][1],Fincr[1][2],Fincr[2][0],Fincr[2][1],Fincr[2][2]);
-      printf("F = |%e %e %e|\n"
-             "    |%e %e %e|\n"
-             "    |%e %e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3],F[216][4],F[216][5],F[216][6],F[216][7],F[216][8]);
-      printf("Fdot = |%e %e %e|\n"
-             "       |%e %e %e|\n"
-             "       |%e %e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3],Fdot[216][4],Fdot[216][5],Fdot[216][6],Fdot[216][7],Fdot[216][8]);
-      }
+      // if (dim==2) {
+      // printf("________________________\n"
+      //        "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
+      // printf("x = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
+      // printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
+      // printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
+      // printf("Fincr = |%e %e|\n"
+      //        "        |%e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[1][0],Fincr[1][1]);
+      // printf("F = |%e %e|\n"
+      //        "    |%e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3]);
+      // printf("Fdot = |%e %e|\n"
+      //        "       |%e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3]);
+      // }
+      // else if (dim==3) {
+      // printf("________________________\n"
+      //        "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
+      // printf("x = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
+      // printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
+      // printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
+      // printf("Fincr = |%e %e %e|\n"
+      //        "        |%e %e %e|\n"
+      //        "        |%e %e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[0][2],Fincr[1][0],Fincr[1][1],Fincr[1][2],Fincr[2][0],Fincr[2][1],Fincr[2][2]);
+      // printf("F = |%e %e %e|\n"
+      //        "    |%e %e %e|\n"
+      //        "    |%e %e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3],F[216][4],F[216][5],F[216][6],F[216][7],F[216][8]);
+      // printf("Fdot = |%e %e %e|\n"
+      //        "       |%e %e %e|\n"
+      //        "       |%e %e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3],Fdot[216][4],Fdot[216][5],Fdot[216][6],Fdot[216][7],Fdot[216][8]);
+      // }
 
     }
   }

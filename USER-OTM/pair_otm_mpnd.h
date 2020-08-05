@@ -36,8 +36,8 @@ PairStyle(otm/mp_nd,PairOTM)
 
 #else
 
-#ifndef LMP_TLSPH_NEW_H
-#define LMP_TLSPH_NEW_H
+#ifndef LMP_MP_ND_H
+#define LMP_MP_ND_H
 
 #include "pair.h"
 #include <Eigen/Eigen>

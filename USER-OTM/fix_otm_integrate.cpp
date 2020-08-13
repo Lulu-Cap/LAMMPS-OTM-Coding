@@ -84,13 +84,13 @@ int ntypes = atom->ntypes;
 char *atom_style = atom->atom_style;
 
 if (strcmp(atom_style, "otm") != 0) 
-  error->all(FLERR, "Illegal atom_style for material point integration. Use OTM style");
+  error->all(FLERR, "Illegal atom_style for otm integration. Use OTM style");
 if (narg != 7) 
-  error->all(FLERR,"Illegal fix otm/integrate_mp command. Incorrect # of args"); // StC
+  error->all(FLERR,"Illegal fix otm/integrate command. Incorrect # of args"); // StC
 if (atom->map_style == 0)
   error->all(FLERR, "LME Shape functions require an atom map to evaluate, see atom modify");
 if (force->newton_pair) 
-  error->all(FLERR, "OTM style cannot be run with newton on"); // Wouldn't make any sense
+  error->all(FLERR, "OTM style cannot be run with newton on"); 
 
 // Parse the input arguments
 for (index = 3; index < narg; index +=2) {
@@ -308,60 +308,9 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
       double detFincr = determinant(Fincr,dim);
       volume[i] *= detFincr;
 
-
-      // DEBUG
       vec_to_matrix(F[i],Fold,dim);
       matrix_mult(Fincr,Fold,Fnew,dim);
       matrix_to_vec(F[i],Fnew,dim);
-
-      // if (dim == 2) {
-      //   Fold[0][0] = F[i][0];
-      //   Fold[0][1] = F[i][1];
-      //   Fold[1][0] = F[i][2];
-      //   Fold[1][1] = F[i][3];
-
-      //   Fnew[0][0] = Fincr[0][0]*Fold[0][0] + Fincr[0][1]*Fold[1][0];
-      //   Fnew[0][1] = Fincr[0][0]*Fold[0][1] + Fincr[0][1]*Fold[1][1];
-      //   Fnew[1][0] = Fincr[1][0]*Fold[0][0] + Fincr[1][1]*Fold[1][0];
-      //   Fnew[1][1] = Fincr[1][0]*Fold[0][1] + Fincr[1][1]*Fold[1][1];
-
-      //   F[i][0] = Fnew[0][0];
-      //   F[i][1] = Fnew[0][1];
-      //   F[i][2] = Fnew[1][0];
-      //   F[i][3] = Fnew[1][1];
-
-      // }
-      // else if (dim == 3) {
-      //   Fold[0][0] = F[i][0];
-      //   Fold[0][1] = F[i][1];
-      //   Fold[0][2] = F[i][2];
-      //   Fold[1][0] = F[i][3];
-      //   Fold[1][1] = F[i][4];
-      //   Fold[1][2] = F[i][5];
-      //   Fold[2][0] = F[i][6];
-      //   Fold[2][1] = F[i][7];
-      //   Fold[2][2] = F[i][8];
-
-      //   Fnew[0][0] = Fincr[0][0]*Fold[0][0] + Fincr[0][1]*Fold[1][0] + Fincr[0][2]*Fold[2][0];
-      //   Fnew[0][1] = Fincr[0][0]*Fold[0][1] + Fincr[0][1]*Fold[1][1] + Fincr[0][2]*Fold[2][1];
-      //   Fnew[0][2] = Fincr[0][0]*Fold[0][2] + Fincr[0][1]*Fold[1][2] + Fincr[0][2]*Fold[2][2];
-      //   Fnew[1][0] = Fincr[1][0]*Fold[0][0] + Fincr[1][1]*Fold[1][0] + Fincr[1][2]*Fold[2][0];
-      //   Fnew[1][1] = Fincr[1][0]*Fold[0][1] + Fincr[1][1]*Fold[1][1] + Fincr[1][2]*Fold[2][1];
-      //   Fnew[1][2] = Fincr[1][0]*Fold[0][2] + Fincr[1][1]*Fold[1][2] + Fincr[1][2]*Fold[2][2];
-      //   Fnew[2][0] = Fincr[2][0]*Fold[0][0] + Fincr[2][1]*Fold[1][0] + Fincr[2][2]*Fold[2][0];
-      //   Fnew[2][1] = Fincr[2][0]*Fold[0][1] + Fincr[2][1]*Fold[1][1] + Fincr[2][2]*Fold[2][1];
-      //   Fnew[2][2] = Fincr[2][0]*Fold[0][2] + Fincr[2][1]*Fold[1][2] + Fincr[2][2]*Fold[2][2];
-
-      //   F[i][0] = Fnew[0][0];
-      //   F[i][1] = Fnew[0][1];
-      //   F[i][2] = Fnew[0][2];
-      //   F[i][3] = Fnew[1][0];
-      //   F[i][4] = Fnew[1][1];
-      //   F[i][5] = Fnew[1][2];
-      //   F[i][6] = Fnew[2][0];
-      //   F[i][7] = Fnew[2][1];
-      //   F[i][8] = Fnew[2][2];
-      // }
 
       for (d1 = 0; d1 < dim; d1++) {
         v[i][d1] = (x[i][d1] - x0[d1])/dt; // Backwards 1st order velocity
@@ -489,6 +438,7 @@ double FixOTMIntegrate::determinant(double F[3][3], int dim)
 
   Should overload later for use with double ** matrices
 ------------------------------------------------------------------------- */
+
 void FixOTMIntegrate::matrix_mult(double A[3][3], double B[3][3], double C[3][3], int dim)
 {
   if (dim == 2) {
@@ -518,6 +468,7 @@ void FixOTMIntegrate::matrix_mult(double A[3][3], double B[3][3], double C[3][3]
 
   Overload this later
 ------------------------------------------------------------------------- */
+
 void FixOTMIntegrate::vec_to_matrix(double *a, double B[3][3], int dim)
 {
   if (dim == 2) {
@@ -546,6 +497,7 @@ void FixOTMIntegrate::vec_to_matrix(double *a, double B[3][3], int dim)
 
   Overload this later
 ------------------------------------------------------------------------- */
+
 void FixOTMIntegrate::matrix_to_vec(double *a, double B[3][3], int dim)
 {
   if (dim == 2) {
@@ -570,6 +522,7 @@ void FixOTMIntegrate::matrix_to_vec(double *a, double B[3][3], int dim)
 }
 
 /* ---------------------------------------------------------------------- */
+
 void FixOTMIntegrate::reset_dt (void) 
 {
   dtv = update->dt;

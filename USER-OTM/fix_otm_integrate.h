@@ -48,7 +48,7 @@ class FixOTMIntegrate : public Fix {
   virtual ~FixOTMIntegrate(); 
   int setmask();
   virtual void init(); // Primarily to set some flags and prevent errors
-  void init_list(int id, NeighList *ptr);
+  void init_list(int, class NeighList *);
   void initial_integrate(int);
   void final_integrate();
 

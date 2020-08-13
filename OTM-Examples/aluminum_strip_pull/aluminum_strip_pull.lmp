@@ -41,7 +41,7 @@ variable        eosC6 equal 0.0
 units			si
 dimension       2
 boundary        sm sm p # simulation box boundaries (shrink-wrapped minimal, ditto, periodic)
-atom_style      otm # was smd
+atom_style      otm 
 atom_modify		map array # creates a map for finding atom ids w/an array (vs. hash table)
 newton          off
 

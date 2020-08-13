@@ -59,9 +59,11 @@ class FixLME : public Fix {
   int size_restart(int);
   int maxsize_restart();
 
+  double hMin; // Minimum nodal spacing. Accessed by material models for finding dtCFL.
+
 
  protected:
-  double gamma, h; // Locality parameter, average spacing
+  double gamma, h; // Locality parameter, nominal spacing
   int typeND, typeMP; // group indexes of nodal and material point groups 
   class NeighList *list;
 

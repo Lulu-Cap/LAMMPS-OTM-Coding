@@ -48,6 +48,7 @@
 #include "update.h"
 #include "variable.h"
 
+using namespace LAMMPS_NS;
 using namespace FixConst;
 using namespace std;
 #define DELTA 16384 // what?
@@ -252,39 +253,39 @@ void FixLME::setup(int vflag)
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
   
-  // Create a partner list from material points to nodes ONLY
-  for (ii = 0; ii < inum; ii++) { // for every atom w/neighbours
-    i = ilist[ii]; // atom index
+  hMin = 1.2e10; // random large value
+  // // Create a partner list from mps to nodes ONLY
+  for (ii = 0; ii < inum; ii++) {//iloop
+    i = ilist[ii];
     itype = type[i];
 
-    if (mask[i] & groupbit && itype == typeMP) { // If atom is in the group and mp type
-      jlist = firstneigh[i]; // pointer to neighbour list J atoms for atom I
-      jnum = numneigh[i]; // Number of neighbours of atom I
+    if (mask[i] & groupbit) {
+      jlist = firstneigh[i];
+      jnum = numneigh[i];
 
-      for (jj = 0; jj < jnum; jj++) { // for each neighbour
-        j = jlist[jj]; // neighbour index (local)
-        j &= NEIGHMASK; // NEIGHMASK = 0x3FFFFFFF which eliminates the highest 2 bits in j, 
-                      //since they are reserved for a bonds flag, and don't contribute to 
-                      //the actual number
+      for (jj = 0; jj < jnum; jj++) {//jloop
+        j = jlist[jj];
+        j &= NEIGHMASK;
         jtype = type[j];
 
-        double rsq = 0.0; // Euclidean distance between particles
-        for (int d = 0; d < dim; d++) {
-          rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
-        }
+        if ( (mask[j] & groupbit) && jtype == typeND) {
+          double rsq = 0.0; // Euclidean distance
+          for (int d = 0; d < dim; d++)
+            rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
 
-        if ( (mask[j] & groupbit) && (rsq <= Rcut_sq) && (jtype == typeND)) { // If neigh is node and within cutoff radius
-          partner[i][npartner[i]++] = j; // Add particle j to partner list of i, and increment npartner
-        }
-      }
-    }
+          if (itype == typeMP) { //mp
+            if (rsq <= Rcut_sq) partner[i][npartner[i]++] = j;
+          } // mp
+          else if (itype == typeND) { //node
+            if (rsq < hMin*hMin && rsq > 0.0) hMin = pow(rsq,0.5); // assign hMin
 
-    else if (mask[i] & groupbit && itype == typeND) {
-      // Only concerned about the mps. Assign non-values
-      npartner[i] = -1;
-      partner[i] = NULL;
+            npartner[i] = -1;
+            partner[i] = NULL;
+          } //node
+        }
+      }//jloop
     }
-  }
+  }//iloop
 
   // Find the max # of partners (could combine with the above)
   maxpartner = 0;
@@ -538,42 +539,39 @@ void FixLME::pre_force(int vflag)
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
   
+  hMin = 1.0e10; // random large number
   // Create a partner list from material points to nodes ONLY
-  for (ii = 0; ii < inum; ii++) { // for every atom w/neighbours
-    i = ilist[ii]; // atom index
+  for (ii = 0; ii < inum; ii++) {//iloop
+    i = ilist[ii];
     itype = type[i];
 
-    if (mask[i] & groupbit && itype == typeMP) { // If atom is in the group and mp type
-      jlist = firstneigh[i]; // pointer to neighbour list J atoms for atom I
-      jnum = numneigh[i]; // Number of neighbours of atom I
+    if (mask[i] & groupbit) {
+      jlist = firstneigh[i];
+      jnum = numneigh[i];
 
-      if (jnum > NEIGH_MAX)
-        error->all(FLERR,"number of neighbours potentially exceeds maximum 2nd dimension of shape function array");
-
-      for (jj = 0; jj < jnum; jj++) { // for each neighbour
-        j = jlist[jj]; // neighbour index (local)
-        j &= NEIGHMASK; // NEIGHMASK = 0x3FFFFFFF which eliminates the highest 2 bits in j, 
-                      //since they are reserved for a bonds flag, and don't contribute to 
-                      //the actual number
+      for (jj = 0; jj < jnum; jj++) {//jloop
+        j = jlist[jj];
+        j &= NEIGHMASK;
         jtype = type[j];
 
-        double rsq = 0.0; // Euclidean distance between particles
-        for (int d = 0; d < dim; d++) {
-          rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
-        }
+        if ( (mask[j] & groupbit) && jtype == typeND) {
+          double rsq = 0.0; // Euclidean distance
+          for (int d = 0; d < dim; d++)
+            rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
 
-        if ( (mask[j] & groupbit) && (rsq <= Rcut_sq) && (jtype == typeND)) { // If neigh is node and within cutoff radius
-          partner[i][npartner[i]++] = j; // Add particle j to partner list of i, and increment npartner
-        }
-      }
-    }
+          if (itype == typeMP) { //mp
+            if (rsq <= Rcut_sq) partner[i][npartner[i]++] = j;
+          } // mp
+          else if (itype == typeND) { //node
+            if (rsq < hMin*hMin && rsq > 0.0) hMin = pow(rsq,0.5); // assign hMin
 
-    else if (mask[i] & groupbit && itype == typeND) {
-      // Only concerned about the mps. Assign non-values
-      npartner[i] = -1;
-      partner[i] = NULL;
+            npartner[i] = -1;
+            partner[i] = NULL;
+          } //node
+        }
+      }//jloop
     }
-  }
+  }//iloop
 
   // Find the max # of partners (could combine with the above)
   maxpartner = 0;

@@ -28,6 +28,7 @@
 #include "fix_lme.h"
 #include <cstring>
 #include <cstdlib>
+#include <stdio.h> //DEBUG
 #include <cmath>
 #include <mpi.h>
 #include "atom.h"
@@ -54,12 +55,22 @@ using namespace std;
 #define DELTA 16384 // what?
 #define TOL 1.0e-16 // machine precision used for cutoff radii
 #define LMDA_TOL_SQ 1.0e-8*1.0e-8
+#define NEIGH_MIN 5
 #define NEIGH_MAX 100
+#define MAX(A,B) ((A) > (B) ? (A) : (B))
+
 /*
 TO-DO:
 --> Adjust functions to take multiple atom types for both nodes
     and material points. Important for multiphase/FSI/contact 
     systems
+--> Add a safety to the LME neighbour finding. If numneigh < NEIGH_MIN 
+    b/c nodes are too far, take the closest NEIGH_MIN nodes as neighbours. 
+    Actually, this should be refined further. Take re-normalize the ball 
+    radius based on the value of the closest node.
+    i.e. If the closest yields exp(beta/|r|)=1e-20, then the new criterion
+    could be set as TOL2 = 1e-20*TOL. This way we still have the same computer 
+    precision cutoffs maintained.
 */
 
 
@@ -246,7 +257,7 @@ void FixLME::setup(int vflag)
 
   // Cutoff Radius
   double beta = gamma / (h*h); 
-  double Rcut_sq = -log(TOL/beta); 
+  double Rcut_sq = -log(TOL)/beta; 
   int dim = domain->dimension;
 
   // zero npartner for all current atoms
@@ -254,7 +265,7 @@ void FixLME::setup(int vflag)
     npartner[i] = 0;
   
   hMin = 1.2e10; // random large value
-  // // Create a partner list from mps to nodes ONLY
+  // Create a partner list from mps to nodes ONLY
   for (ii = 0; ii < inum; ii++) {//iloop
     i = ilist[ii];
     itype = type[i];
@@ -287,6 +298,58 @@ void FixLME::setup(int vflag)
     }
   }//iloop
 
+
+// DEBUG: Do a loop to prove the neighbour list is still working
+{
+// Make files so we know things are going in the correct fucking place (why are nds and mps getting renumbered? Doesn't make any sense...).
+FILE *MP_FILE;
+FILE *ND_FILE;
+MP_FILE = fopen("mp_locations_setup.txt","w");
+ND_FILE = fopen("nd_locations_setup.txt","w");
+
+if (MP_FILE!=NULL && ND_FILE!=NULL) {
+  fprintf(MP_FILE,"ID\tType\tx\ty\tz\n");
+  fprintf(ND_FILE,"ID\tType\tx\ty\tz\n");
+
+
+  printf("\n\n");
+  for (ii = 0; ii < inum; ii++) { // iloop
+    i = ilist[ii];
+    itype = type[i];
+
+    if (itype == typeND) {
+      printf("Node (%i): ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,npartner[i]);
+      fprintf(ND_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
+    }
+
+    else if (itype == typeMP) {
+      jnum = npartner[i];
+      jlist = partner[i];
+      printf("MP (%i):ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,jnum);
+      fprintf(MP_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
+
+      for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj];
+        printf("%i ",j);
+      }
+      printf("\n");
+    }
+    printf("\n");
+  }
+  printf("\n\n");
+
+
+  fclose(MP_FILE);
+  fclose(ND_FILE);
+
+}
+}
+
+
+
+
+
+
   // Find the max # of partners (could combine with the above)
   maxpartner = 0;
   for (i = 0; i < nlocal; i++)
@@ -303,7 +366,7 @@ void FixLME::setup(int vflag)
     }
   }
 
-  // Main Loop: loop though each nd/mp pair and identify evaluate shape function and 
+  // Main Loop: loop though each nd/mp pair and evaluate shape function and 
   //    shape function gradient for each.  
   const int max_iter = 100;
   for (ii = 0; ii < inum; ii++) { // mp loop
@@ -512,7 +575,6 @@ void FixLME::pre_force(int vflag)
 
   int nlocal = atom->nlocal; // number of owned atoms on this proc
   nmax = atom->nmax; // Maximum number of local + ghost atoms on this proc
-  grow_arrays(nmax);
 
   int *npartner = atom->npartner;
   int **partner = atom->partner;
@@ -532,8 +594,39 @@ void FixLME::pre_force(int vflag)
 
   // Cutoff Radius
   double beta = gamma / (h*h); 
-  double Rcut_sq = -log(TOL/beta); 
+  double Rcut_sq = -log(TOL)/beta; 
   int dim = domain->dimension;
+
+  // Find the max # of partners --> very important to do before allocating memory!
+  maxpartner = NEIGH_MIN;
+  for (ii = 0; ii < nlocal; ii++) {
+    int count = 0;
+    i = ilist[ii];
+    itype = type[i];
+    if ( (mask[i] & groupbit) && (itype == typeMP) ) {
+      jlist = firstneigh[i];
+      jnum = numneigh[i];
+      for (jj = 0; jj < jnum; jj++) {
+        if ( (mask[j] & groupbit) && (jtype == typeND) ) {
+          double rsq = 0.0; // Euclidean distance
+          for (int d = 0; d < dim; d++)
+            rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+          if (rsq <= Rcut_sq) count++;
+        }
+      }
+    }
+    maxpartner = MAX(maxpartner, count);
+    // printf("maxpartner = %i\n",maxpartner); //debug
+  }
+  int maxall;
+  MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
+  maxpartner = maxall;
+
+  //DEBUG
+  // printf("maxpartner = %i",maxpartner);
+  // maxpartner = 50;
+  
+  grow_arrays(nmax);
 
   // zero npartner for all current atoms
   for (i = 0; i < nlocal; i++)
@@ -545,7 +638,7 @@ void FixLME::pre_force(int vflag)
     i = ilist[ii];
     itype = type[i];
 
-    if (mask[i] & groupbit) {
+    if (mask[i] & groupbit) { //itest1
       jlist = firstneigh[i];
       jnum = numneigh[i];
 
@@ -554,32 +647,128 @@ void FixLME::pre_force(int vflag)
         j &= NEIGHMASK;
         jtype = type[j];
 
-        if ( (mask[j] & groupbit) && jtype == typeND) {
+        if ( (mask[j] & groupbit) && (jtype == typeND) ) {//jtest
           double rsq = 0.0; // Euclidean distance
           for (int d = 0; d < dim; d++)
             rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
 
-          if (itype == typeMP) { //mp
-            if (rsq <= Rcut_sq) partner[i][npartner[i]++] = j;
-          } // mp
-          else if (itype == typeND) { //node
-            if (rsq < hMin*hMin && rsq > 0.0) hMin = pow(rsq,0.5); // assign hMin
+          // printf("particle %i\n",i);//debug
+          if ( (itype == typeMP) && (rsq <= Rcut_sq) ) {
+            // partner[i][npartner[i]++] = j; 
+            partner[i][npartner[i]++] = j;
+            // printf("partner[%i][%i] = %i\n",i,npartner[i]-1,partner[i][npartner[i]-1]); //DEBUG
+          }
 
-            npartner[i] = -1;
-            partner[i] = NULL;
+          else if (itype == typeND) { //node
+            if (rsq < hMin*hMin && rsq > 0.0) 
+              hMin = pow(rsq,0.5); // assign hMin
+            if (jj == 1) {
+              npartner[i] = -1;
+              partner[i] = NULL;
+            }
           } //node
-        }
+        }//jtest
       }//jloop
-    }
+
+      {
+        // If insufficient neighbours based on TOL criterion, get the 
+        // closest ones
+        /*Note: Improve this algorithm by renormalizing the TOL instead!
+        See notes at top or in logbook for details*/
+        // if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
+        //   npartner[i] = NEIGH_MIN;
+        //   int rsq_closest[NEIGH_MIN];
+        //   int nodal_neigh = 0;
+
+        //   for (jj = 0; jj < jnum; jj++) { //jloop
+        //     j = jlist[jj];
+        //     j &= NEIGHMASK;
+        //     jtype = type[j];
+
+        //     if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
+        //       double rsq = 0.0;
+        //       for (int d = 0; d < dim; d++)
+        //         rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+              
+        //       if (nodal_neigh < NEIGH_MIN) { // Assign first values
+        //         partner[i][nodal_neigh] = j;
+        //         rsq_closest[nodal_neigh] = rsq;
+        //         nodal_neigh++;
+        //       }
+
+        //       for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
+        //         if (rsq < rsq_closest[kk]) {
+        //           partner[i][kk] = j;
+        //           rsq_closest[kk] = rsq;
+        //         }
+
+        //       }
+
+        //     } //jtest
+        //   } //jloop
+        //   if (nodal_neigh < NEIGH_MIN)
+        //     error->all(FLERR,"Insufficient nodal neighbours found for material point");
+        // }
+      }
+    }//itest1
   }//iloop
 
-  // Find the max # of partners (could combine with the above)
-  maxpartner = 0;
-  for (i = 0; i < nlocal; i++)
-    maxpartner = MAX(maxpartner, npartner[i]);
-  int maxall;
-  MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
-  maxpartner = maxall;
+// printf("\n\ni = 16\nnpartner = %i\n",npartner[16]);
+// for (jj = 0; jj < npartner[16]; jj++) {
+  // partner[16][jj] = jj;
+  // printf("jj=%i: j=%i\t",jj,partner[16][jj]);
+
+
+{
+// // DEBUG: Do a loop to prove the neighbour list is still working
+// {
+// // Make files so we know things are going in the correct fucking place (why are nds and mps getting renumbered? Doesn't make any sense...).
+// FILE *MP_FILE;
+// FILE *ND_FILE;
+// MP_FILE = fopen("mp_locations.txt","w");
+// ND_FILE = fopen("nd_locations.txt","w");
+
+// if (MP_FILE!=NULL && ND_FILE!=NULL) {
+//   fprintf(MP_FILE,"ID\tType\tx\ty\tz\n");
+//   fprintf(ND_FILE,"ID\tType\tx\ty\tz\n");
+
+
+//   printf("\n\n");
+//   for (ii = 0; ii < inum; ii++) { // iloop
+//     i = ilist[ii];
+//     itype = type[i];
+
+//     if (itype == typeND) {
+//       printf("Node (%i): ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,npartner[i]);
+//       fprintf(ND_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
+//     }
+
+//     else if (itype == typeMP) {
+//       jnum = npartner[i];
+//       jlist = partner[i];
+//       printf("MP (%i):ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,jnum);
+//       fprintf(MP_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
+
+//       for (jj = 0; jj < jnum; jj++) {
+//         j = jlist[jj];
+//         printf("%i ",j);
+//       }
+//       printf("\n");
+//     }
+//     printf("\n");
+//   }
+//   printf("\n\n");
+
+//   fclose(MP_FILE);
+//   fclose(ND_FILE);
+
+// }
+// }
+}
+
+
+
+
 
   // zero shape functions + derivatives
   for (i = 0; i < nlocal; i++) {
@@ -712,21 +901,29 @@ void FixLME::pre_force(int vflag)
         lambda1[2] = lambda0[2] - ( invH[2][0]*r[0] + invH[2][1]*r[1] + invH[2][2]*r[2] );
         }
 
+        // Evaluate change in lambda
+        {norm_sq = (lambda0[0]-lambda1[0])*(lambda0[0]-lambda1[0]) +
+                  (lambda0[1]-lambda1[1])*(lambda0[1]-lambda1[1]) +
+                  (lambda0[2]-lambda1[2])*(lambda0[2]-lambda1[2]);
+        }
+
+        //DEBUG
+        // printf("norm_sq = %lf\n",norm_sq);
+
         // Test if max_iter exceeded or convergence otherwise failed
         {
-        if (iter > max_iter) error->all(FLERR, "Maximum iterations reached without LME convergence to specified tolerance\n");
+        if (iter > max_iter) {
+          printf("\n\nLME Failed on particle i=%i\n\n",i);
+          for (jj = 0; jj < jnum; jj++) 
+            printf("%i ",jlist[jj]);
+          error->all(FLERR, "Maximum iterations reached without LME convergence to specified tolerance\n");
+        }
         if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
             (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
             (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
 
           error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
         }
-        }
-
-        // Evaluate change in lambda
-        {norm_sq = (lambda0[0]-lambda1[0])*(lambda0[0]-lambda1[0]) +
-                  (lambda0[1]-lambda1[1])*(lambda0[1]-lambda1[1]) +
-                  (lambda0[2]-lambda1[2])*(lambda0[2]-lambda1[2]);
         }
 
       } while (norm_sq > LMDA_TOL_SQ); // Convergence while loop
@@ -784,6 +981,9 @@ void FixLME::pre_force(int vflag)
     //   }
     // }
   } 
+
+  //DEBUG
+  printf("timestep: %lli\n",update->ntimestep);
 }
 
 /* ----------------------------------------------------------------------

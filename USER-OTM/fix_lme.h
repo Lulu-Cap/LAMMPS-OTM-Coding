@@ -63,7 +63,7 @@ class FixLME : public Fix {
 
 
  protected:
-  double gamma, h; // Locality parameter, nominal spacing
+  double gamma, h; // Locality parameter, average spacing
   int typeND, typeMP; // group indexes of nodal and material point groups 
   class NeighList *list;
 

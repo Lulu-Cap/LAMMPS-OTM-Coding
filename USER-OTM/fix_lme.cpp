@@ -263,14 +263,40 @@ void FixLME::setup(int vflag)
   // zero npartner for all current atoms
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
+
+  // Find the max # of partners --> very important to do before allocating memory!
+  maxpartner = NEIGH_MIN;
+  for (ii = 0; ii < nlocal; ii++) {
+    int count = 0;
+    i = ilist[ii];
+    itype = type[i];
+    if ( (mask[i] & groupbit) && (itype == typeMP) ) {
+      jlist = firstneigh[i];
+      jnum = numneigh[i];
+      for (jj = 0; jj < jnum; jj++) {
+        if ( (mask[j] & groupbit) && (jtype == typeND) ) {
+          double rsq = 0.0; // Euclidean distance
+          for (int d = 0; d < dim; d++)
+            rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+          if (rsq <= Rcut_sq) count++;
+        }
+      }
+    }
+    maxpartner = MAX(maxpartner, count);
+  }
+  int maxall;
+  MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
+  maxpartner = maxall;
   
-  hMin = 1.2e10; // random large value
-  // Create a partner list from mps to nodes ONLY
+  grow_arrays(nmax);
+  
+  hMin = 1.0e10; // random large number
+  // Create a partner list from material points to nodes ONLY
   for (ii = 0; ii < inum; ii++) {//iloop
     i = ilist[ii];
     itype = type[i];
 
-    if (mask[i] & groupbit) {
+    if (mask[i] & groupbit) { //itest1
       jlist = firstneigh[i];
       jnum = numneigh[i];
 
@@ -279,84 +305,68 @@ void FixLME::setup(int vflag)
         j &= NEIGHMASK;
         jtype = type[j];
 
-        if ( (mask[j] & groupbit) && jtype == typeND) {
+        if ( (mask[j] & groupbit) && (jtype == typeND) ) {//jtest
           double rsq = 0.0; // Euclidean distance
           for (int d = 0; d < dim; d++)
             rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
 
-          if (itype == typeMP) { //mp
-            if (rsq <= Rcut_sq) partner[i][npartner[i]++] = j;
-          } // mp
+          if ( (itype == typeMP) && (rsq <= Rcut_sq) ) {
+            partner[i][npartner[i]++] = j;
+          }
+
           else if (itype == typeND) { //node
-            if (rsq < hMin*hMin && rsq > 0.0) hMin = pow(rsq,0.5); // assign hMin
-
-            npartner[i] = -1;
-            partner[i] = NULL;
+            if (rsq < hMin*hMin && rsq > 0.0) 
+              hMin = pow(rsq,0.5); // assign hMin
+            if (jj == 1) {
+              npartner[i] = -1;
+              partner[i] = NULL;
+            }
           } //node
-        }
+        }//jtest
       }//jloop
-    }
-  }//iloop
 
+      {
+        // If insufficient neighbours based on TOL criterion, get the 
+        // closest ones
+        /*Note: Improve this algorithm by renormalizing the TOL instead!
+        See notes at top or in logbook for details*/
+        if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
+          npartner[i] = NEIGH_MIN;
+          int rsq_closest[NEIGH_MIN];
+          int nodal_neigh = 0;
 
-// DEBUG: Do a loop to prove the neighbour list is still working
-{
-// Make files so we know things are going in the correct fucking place (why are nds and mps getting renumbered? Doesn't make any sense...).
-FILE *MP_FILE;
-FILE *ND_FILE;
-MP_FILE = fopen("mp_locations_setup.txt","w");
-ND_FILE = fopen("nd_locations_setup.txt","w");
+          for (jj = 0; jj < jnum; jj++) { //jloop
+            j = jlist[jj];
+            j &= NEIGHMASK;
+            jtype = type[j];
 
-if (MP_FILE!=NULL && ND_FILE!=NULL) {
-  fprintf(MP_FILE,"ID\tType\tx\ty\tz\n");
-  fprintf(ND_FILE,"ID\tType\tx\ty\tz\n");
+            if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
+              double rsq = 0.0;
+              for (int d = 0; d < dim; d++)
+                rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+              
+              if (nodal_neigh < NEIGH_MIN) { // Assign first values
+                partner[i][nodal_neigh] = j;
+                rsq_closest[nodal_neigh] = rsq;
+                nodal_neigh++;
+              }
 
+              for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
+                if (rsq < rsq_closest[kk]) {
+                  partner[i][kk] = j;
+                  rsq_closest[kk] = rsq;
+                }
 
-  printf("\n\n");
-  for (ii = 0; ii < inum; ii++) { // iloop
-    i = ilist[ii];
-    itype = type[i];
+              }
 
-    if (itype == typeND) {
-      printf("Node (%i): ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,npartner[i]);
-      fprintf(ND_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
-    }
-
-    else if (itype == typeMP) {
-      jnum = npartner[i];
-      jlist = partner[i];
-      printf("MP (%i):ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,jnum);
-      fprintf(MP_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
-
-      for (jj = 0; jj < jnum; jj++) {
-        j = jlist[jj];
-        printf("%i ",j);
+            } //jtest
+          } //jloop
+          if (nodal_neigh < NEIGH_MIN)
+            error->all(FLERR,"Insufficient nodal neighbours found for material point");
+        }
       }
-      printf("\n");
-    }
-    printf("\n");
-  }
-  printf("\n\n");
-
-
-  fclose(MP_FILE);
-  fclose(ND_FILE);
-
-}
-}
-
-
-
-
-
-
-  // Find the max # of partners (could combine with the above)
-  maxpartner = 0;
-  for (i = 0; i < nlocal; i++)
-    maxpartner = MAX(maxpartner, npartner[i]);
-  int maxall;
-  MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
-  maxpartner = maxall;
+    }//itest1
+  }//iloop
 
   // zero shape functions + derivatives
   for (i = 0; i < nlocal; i++) {
@@ -597,6 +607,10 @@ void FixLME::pre_force(int vflag)
   double Rcut_sq = -log(TOL)/beta; 
   int dim = domain->dimension;
 
+  // zero npartner for all current atoms
+  for (i = 0; i < nlocal; i++)
+    npartner[i] = 0;
+
   // Find the max # of partners --> very important to do before allocating memory!
   maxpartner = NEIGH_MIN;
   for (ii = 0; ii < nlocal; ii++) {
@@ -616,21 +630,12 @@ void FixLME::pre_force(int vflag)
       }
     }
     maxpartner = MAX(maxpartner, count);
-    // printf("maxpartner = %i\n",maxpartner); //debug
   }
   int maxall;
   MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
   maxpartner = maxall;
-
-  //DEBUG
-  // printf("maxpartner = %i",maxpartner);
-  // maxpartner = 50;
   
   grow_arrays(nmax);
-
-  // zero npartner for all current atoms
-  for (i = 0; i < nlocal; i++)
-    npartner[i] = 0;
   
   hMin = 1.0e10; // random large number
   // Create a partner list from material points to nodes ONLY
@@ -652,11 +657,8 @@ void FixLME::pre_force(int vflag)
           for (int d = 0; d < dim; d++)
             rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
 
-          // printf("particle %i\n",i);//debug
           if ( (itype == typeMP) && (rsq <= Rcut_sq) ) {
-            // partner[i][npartner[i]++] = j; 
             partner[i][npartner[i]++] = j;
-            // printf("partner[%i][%i] = %i\n",i,npartner[i]-1,partner[i][npartner[i]-1]); //DEBUG
           }
 
           else if (itype == typeND) { //node
@@ -675,100 +677,43 @@ void FixLME::pre_force(int vflag)
         // closest ones
         /*Note: Improve this algorithm by renormalizing the TOL instead!
         See notes at top or in logbook for details*/
-        // if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
-        //   npartner[i] = NEIGH_MIN;
-        //   int rsq_closest[NEIGH_MIN];
-        //   int nodal_neigh = 0;
+        if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
+          npartner[i] = NEIGH_MIN;
+          int rsq_closest[NEIGH_MIN];
+          int nodal_neigh = 0;
 
-        //   for (jj = 0; jj < jnum; jj++) { //jloop
-        //     j = jlist[jj];
-        //     j &= NEIGHMASK;
-        //     jtype = type[j];
+          for (jj = 0; jj < jnum; jj++) { //jloop
+            j = jlist[jj];
+            j &= NEIGHMASK;
+            jtype = type[j];
 
-        //     if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
-        //       double rsq = 0.0;
-        //       for (int d = 0; d < dim; d++)
-        //         rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+            if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
+              double rsq = 0.0;
+              for (int d = 0; d < dim; d++)
+                rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
               
-        //       if (nodal_neigh < NEIGH_MIN) { // Assign first values
-        //         partner[i][nodal_neigh] = j;
-        //         rsq_closest[nodal_neigh] = rsq;
-        //         nodal_neigh++;
-        //       }
+              if (nodal_neigh < NEIGH_MIN) { // Assign first values
+                partner[i][nodal_neigh] = j;
+                rsq_closest[nodal_neigh] = rsq;
+                nodal_neigh++;
+              }
 
-        //       for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
-        //         if (rsq < rsq_closest[kk]) {
-        //           partner[i][kk] = j;
-        //           rsq_closest[kk] = rsq;
-        //         }
+              for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
+                if (rsq < rsq_closest[kk]) {
+                  partner[i][kk] = j;
+                  rsq_closest[kk] = rsq;
+                }
 
-        //       }
+              }
 
-        //     } //jtest
-        //   } //jloop
-        //   if (nodal_neigh < NEIGH_MIN)
-        //     error->all(FLERR,"Insufficient nodal neighbours found for material point");
-        // }
+            } //jtest
+          } //jloop
+          if (nodal_neigh < NEIGH_MIN)
+            error->all(FLERR,"Insufficient nodal neighbours found for material point");
+        }
       }
     }//itest1
   }//iloop
-
-// printf("\n\ni = 16\nnpartner = %i\n",npartner[16]);
-// for (jj = 0; jj < npartner[16]; jj++) {
-  // partner[16][jj] = jj;
-  // printf("jj=%i: j=%i\t",jj,partner[16][jj]);
-
-
-{
-// // DEBUG: Do a loop to prove the neighbour list is still working
-// {
-// // Make files so we know things are going in the correct fucking place (why are nds and mps getting renumbered? Doesn't make any sense...).
-// FILE *MP_FILE;
-// FILE *ND_FILE;
-// MP_FILE = fopen("mp_locations.txt","w");
-// ND_FILE = fopen("nd_locations.txt","w");
-
-// if (MP_FILE!=NULL && ND_FILE!=NULL) {
-//   fprintf(MP_FILE,"ID\tType\tx\ty\tz\n");
-//   fprintf(ND_FILE,"ID\tType\tx\ty\tz\n");
-
-
-//   printf("\n\n");
-//   for (ii = 0; ii < inum; ii++) { // iloop
-//     i = ilist[ii];
-//     itype = type[i];
-
-//     if (itype == typeND) {
-//       printf("Node (%i): ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,npartner[i]);
-//       fprintf(ND_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
-//     }
-
-//     else if (itype == typeMP) {
-//       jnum = npartner[i];
-//       jlist = partner[i];
-//       printf("MP (%i):ii = %i\ti = %i\tnum neigh: %i\n",itype,ii,i,jnum);
-//       fprintf(MP_FILE,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
-
-//       for (jj = 0; jj < jnum; jj++) {
-//         j = jlist[jj];
-//         printf("%i ",j);
-//       }
-//       printf("\n");
-//     }
-//     printf("\n");
-//   }
-//   printf("\n\n");
-
-//   fclose(MP_FILE);
-//   fclose(ND_FILE);
-
-// }
-// }
-}
-
-
-
-
 
   // zero shape functions + derivatives
   for (i = 0; i < nlocal; i++) {
@@ -907,9 +852,6 @@ void FixLME::pre_force(int vflag)
                   (lambda0[2]-lambda1[2])*(lambda0[2]-lambda1[2]);
         }
 
-        //DEBUG
-        // printf("norm_sq = %lf\n",norm_sq);
-
         // Test if max_iter exceeded or convergence otherwise failed
         {
         if (iter > max_iter) {
@@ -982,8 +924,76 @@ void FixLME::pre_force(int vflag)
     // }
   } 
 
-  //DEBUG
-  printf("timestep: %lli\n",update->ntimestep);
+
+  {
+  // //DEBUG: print a file to compare the LME evaluations to those from MATLAB
+  // printf("timestep: %lli\n",update->ntimestep);
+
+  // // Files originally printed positions of nodes and mps. These are input to MATLAB to calc LME for comparison
+  // // Now files
+  // if (update->ntimestep == 1) {
+  //   FILE *MP_FILE_X;
+  //   FILE *ND_FILE_X;
+  //   FILE *FILE_LME;
+  //   FILE *FILE_LME_GRAD;
+  //   MP_FILE_X = fopen("mp_locations.txt","w");
+  //   ND_FILE_X = fopen("nd_locations.txt","w");
+  //   FILE_LME = fopen("lme.txt","w");
+  //   FILE_LME_GRAD = fopen("lme_grad.txt","w");
+
+  //   if (MP_FILE_X!=NULL && ND_FILE_X!=NULL && FILE_LME!=NULL && FILE_LME_GRAD!=NULL) {
+  //     fprintf(MP_FILE_X,"ID\tType\tx\ty\tz\n");
+  //     fprintf(ND_FILE_X,"ID\tType\tx\ty\tz\n");
+  //     // fprintf(FILE_LME,"%% MP order is the same as in the mp_locations.txt file.\n"
+  //     //                 "%% I have printed up to the maxpartner value to make the array uniform.\n"
+  //     //                 "%% Non-partnered positions assigned a value of zero\n"
+  //     //                 "%% One line represents one mp\n");
+  //     // fprintf(FILE_LME_GRAD,"%% MP order is the same as in the mp_locations.txt file.\n"
+  //     //                 "%% I have printed up to the maxpartner value to make the array uniform. The order of gradients is x y x y ...\n"
+  //     //                 "%% Non-partnered positions assigned a value of zero\n"
+  //     //                 "%% One line represents one mp\n");
+
+  //     for (ii = 0; ii < inum; ii++) { // iloop
+  //       i = ilist[ii];
+  //       itype = type[i];
+
+  //       if (itype == typeND)  // print nodal positions
+  //         fprintf(ND_FILE_X,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
+        
+  //       else if (itype == typeMP) {
+  //         jnum = npartner[i];
+  //         jlist = partner[i];
+
+  //         // print mp positions 
+  //         fprintf(MP_FILE_X,"%i\t%i\t%lf\t%lf\t%lf\n",ii,itype,x[i][0],x[i][1],x[i][2]);
+  //         //print npartner
+  //         fprintf(FILE_LME,"%i ",jnum);
+  //         fprintf(FILE_LME_GRAD,"%i ",jnum);
+  //         for (jj = 0; jj < maxpartner; jj++) {
+  //           if (jj < jnum) {
+  //             // print LME
+  //             fprintf(FILE_LME,"%.8e ",p[i][jj]);
+  //             fprintf(FILE_LME_GRAD,"%.8e %.8e ",gradp[i][jj],gradp[i][jj+1]);
+  //             }
+  //           else {
+  //             fprintf(FILE_LME,"%.8e ",0.0);
+  //             fprintf(FILE_LME_GRAD,"%.8e %.8e ",0.0,0.0);
+  //           }
+  //         }
+  //         fprintf(FILE_LME,";\n");
+  //         fprintf(FILE_LME_GRAD,";\n");
+  //       }
+  //     }
+  //     fclose(MP_FILE_X);
+  //     fclose(ND_FILE_X);
+  //     fclose(FILE_LME);
+  //     fclose(FILE_LME_GRAD);
+  //   }
+  // }
+  }
+
+
+
 }
 
 /* ----------------------------------------------------------------------

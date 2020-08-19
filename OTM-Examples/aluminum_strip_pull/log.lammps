@@ -64,7 +64,7 @@ read_data   aluminum_strip_pull.data # nds are type 1, mps are type 2
   1241 atoms
   reading velocities ...
   1241 velocities
-  read_data CPU = 0.038383 secs
+  read_data CPU = 0.0539401 secs
 group tlsph type 1 # nds
 441 atoms in group tlsph
 group mp type 2 # mps
@@ -226,7 +226,7 @@ Neighbor list info ...
 TLSPH neighbors:
   max # of neighbors for a single particle = 48
   average # of neighbors/particle in group tlsph = 40.6259
-Per MPI rank memory allocation (min/avg/max) = 103.1 | 103.1 | 103.1 Mbytes
+Per MPI rank memory allocation (min/avg/max) = 119.3 | 119.3 | 119.3 Mbytes
 Step Dt f_dtfix Time v_strain 
        0        1e-16            0            0            0 
      100  0.037770719    3.8234739    3.7770719 0.00014377122 
@@ -329,19 +329,19 @@ Step Dt f_dtfix Time v_strain
     9800   0.04088234    357.69782    400.64693   0.53609265 
     9900  0.040883607    361.38158    404.74771   0.54352367 
    10000  0.038419004    365.06284    384.19004   0.55095828 
-Loop time of 104.414 on 1 procs for 10000 steps with 1241 atoms
+Loop time of 111.984 on 1 procs for 10000 steps with 1241 atoms
 
-98.3% CPU use with 1 MPI tasks x no OpenMP threads
+95.9% CPU use with 1 MPI tasks x no OpenMP threads
 
 MPI task timing breakdown:
 Section |  min time  |  avg time  |  max time  |%varavg| %total
 ---------------------------------------------------------------
-Pair    | 40.795     | 40.795     | 40.795     |   0.0 | 39.07
-Neigh   | 0.033552   | 0.033552   | 0.033552   |   0.0 |  0.03
-Comm    | 0.0091627  | 0.0091627  | 0.0091627  |   0.0 |  0.01
-Output  | 0.82554    | 0.82554    | 0.82554    |   0.0 |  0.79
-Modify  | 62.707     | 62.707     | 62.707     |   0.0 | 60.06
-Other   |            | 0.04337    |            |       |  0.04
+Pair    | 43.444     | 43.444     | 43.444     |   0.0 | 38.80
+Neigh   | 0.036114   | 0.036114   | 0.036114   |   0.0 |  0.03
+Comm    | 0.011178   | 0.011178   | 0.011178   |   0.0 |  0.01
+Output  | 0.88395    | 0.88395    | 0.88395    |   0.0 |  0.79
+Modify  | 67.559     | 67.559     | 67.559     |   0.0 | 60.33
+Other   |            | 0.0492     |            |       |  0.04
 
 Nlocal:    1241 ave 1241 max 1241 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
@@ -356,4 +356,4 @@ Total # of neighbors = 168290
 Ave neighs/atom = 135.608
 Neighbor list builds = 6
 Dangerous builds = 0
-Total wall time: 0:01:44
+Total wall time: 0:01:52

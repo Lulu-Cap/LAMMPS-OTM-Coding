@@ -122,7 +122,7 @@ void FixSMD_TLSPH_ReferenceConfiguration::pre_exchange() {
         double **x = atom->x;
         double **x0 = atom->x0;
         double *rmass = atom->rmass;
-        int nlocal = atom->nlocal; // atoms on local proc.
+        int nlocal = atom->nlocal;
         int i, itmp;
         int *mask = atom->mask;
         if (igroup == atom->firstgroup) { // atoms are stored in this group first

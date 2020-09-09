@@ -53,7 +53,7 @@ using namespace LAMMPS_NS;
 using namespace FixConst;
 using namespace std;
 #define DELTA 16384 // what?
-#define TOL 1.0e-16 // machine precision used for cutoff radii
+#define TOL 1.0e-15 // machine precision used for cutoff radii
 #define LMDA_TOL_SQ 1.0e-8*1.0e-8
 #define NEIGH_MIN 5
 #define NEIGH_MAX 100
@@ -114,18 +114,19 @@ if (force->newton_pair) {
 
 // Parse the input arguments
 for (index = 3; index < narg; index +=2) {
-  if (strcmp(arg[index],"mat_points") == 0) {
+  if (strcmp(arg[index],"MP") == 0) {
     // Find atom type of mps
     typeMP = force->numeric(FLERR,arg[index+1]);
     if (typeMP > ntypes) error->all(FLERR,"mat_points type does not exist");
   }
-  else if (strcmp(arg[index],"nodes") == 0) {
+  else if (strcmp(arg[index],"ND") == 0) {
     // Find atom type of nodes
     typeND = force->numeric(FLERR, arg[index+1]);
     if (typeND > ntypes) error->all(FLERR,"nodes type does not exist");
   }
-  else if (strcmp(arg[index],"Spacing") == 0) {
+  else if (strcmp(arg[index],"hNom") == 0) {
     h = force->numeric(FLERR,arg[index+1]);
+    hMin = h;
   }
   else if (strcmp(arg[index],"Locality") == 0) {
     gamma = force->numeric(FLERR,arg[index+1]);
@@ -229,347 +230,8 @@ void FixLME::setup(int vflag)
   if (strstr(update->integrate_style,"verlet"))
     pre_force(vflag);
   else
-    error->all(FLERR,"Fix setchempotential requires verlet method");
-
-  int i, j, ii, jj, n, inum, jnum;
-  int *ilist, *jlist, *numneigh, **firstneigh;
-  int itype, jtype;
-
-  int nlocal = atom->nlocal; // number of owned atoms on this proc
-  nmax = atom->nmax; // Maximum number of local + ghost atoms on this proc
-  grow_arrays(nmax);
-
-  int *npartner = atom->npartner;
-  int **partner = atom->partner;
-  double **p = atom->p;
-  double **gradp = atom->gradp;
-
-  double **x = atom->x;
-  double *radius = atom->radius; // Do I need this?
-  int *mask = atom->mask; 
-  int *type = atom->type;
-  tagint *tag = atom->tag; // wtf?
-  //NeighList *list = pair->list; //
-  inum = list->inum; // # of atoms neighbours are stored for
-  ilist = list->ilist; // local indices of I atoms
-  numneigh = list->numneigh; // # of J neighbours for each I atom
-  firstneigh = list->firstneigh; // ptr to 1st J int value of each I atom
-
-  // Cutoff Radius
-  double beta = gamma / (h*h); 
-  double Rcut_sq = -log(TOL)/beta; 
-  int dim = domain->dimension;
-
-  // zero npartner for all current atoms
-  for (i = 0; i < nlocal; i++)
-    npartner[i] = 0;
-
-  // Find the max # of partners --> very important to do before allocating memory!
-  maxpartner = NEIGH_MIN;
-  for (ii = 0; ii < nlocal; ii++) {
-    int count = 0;
-    i = ilist[ii];
-    itype = type[i];
-    if ( (mask[i] & groupbit) && (itype == typeMP) ) {
-      jlist = firstneigh[i];
-      jnum = numneigh[i];
-      for (jj = 0; jj < jnum; jj++) {
-        if ( (mask[j] & groupbit) && (jtype == typeND) ) {
-          double rsq = 0.0; // Euclidean distance
-          for (int d = 0; d < dim; d++)
-            rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
-          if (rsq <= Rcut_sq) count++;
-        }
-      }
-    }
-    maxpartner = MAX(maxpartner, count);
-  }
-  int maxall;
-  MPI_Allreduce(&maxpartner, &maxall, 1, MPI_INT, MPI_MAX, world);
-  maxpartner = maxall;
-  
-  grow_arrays(nmax);
-  
-  hMin = 1.0e10; // random large number
-  // Create a partner list from material points to nodes ONLY
-  for (ii = 0; ii < inum; ii++) {//iloop
-    i = ilist[ii];
-    itype = type[i];
-
-    if (mask[i] & groupbit) { //itest1
-      jlist = firstneigh[i];
-      jnum = numneigh[i];
-
-      for (jj = 0; jj < jnum; jj++) {//jloop
-        j = jlist[jj];
-        j &= NEIGHMASK;
-        jtype = type[j];
-
-        if ( (mask[j] & groupbit) && (jtype == typeND) ) {//jtest
-          double rsq = 0.0; // Euclidean distance
-          for (int d = 0; d < dim; d++)
-            rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
-
-          if ( (itype == typeMP) && (rsq <= Rcut_sq) ) {
-            partner[i][npartner[i]++] = j;
-          }
-
-          else if (itype == typeND) { //node
-            if (rsq < hMin*hMin && rsq > 0.0) 
-              hMin = pow(rsq,0.5); // assign hMin
-            if (jj == 1) {
-              npartner[i] = -1;
-              partner[i] = NULL;
-            }
-          } //node
-        }//jtest
-      }//jloop
-
-      {
-        // If insufficient neighbours based on TOL criterion, get the 
-        // closest ones
-        /*Note: Improve this algorithm by renormalizing the TOL instead!
-        See notes at top or in logbook for details*/
-        if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
-          npartner[i] = NEIGH_MIN;
-          int rsq_closest[NEIGH_MIN];
-          int nodal_neigh = 0;
-
-          for (jj = 0; jj < jnum; jj++) { //jloop
-            j = jlist[jj];
-            j &= NEIGHMASK;
-            jtype = type[j];
-
-            if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
-              double rsq = 0.0;
-              for (int d = 0; d < dim; d++)
-                rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
-              
-              if (nodal_neigh < NEIGH_MIN) { // Assign first values
-                partner[i][nodal_neigh] = j;
-                rsq_closest[nodal_neigh] = rsq;
-                nodal_neigh++;
-              }
-
-              for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
-                if (rsq < rsq_closest[kk]) {
-                  partner[i][kk] = j;
-                  rsq_closest[kk] = rsq;
-                }
-
-              }
-
-            } //jtest
-          } //jloop
-          if (nodal_neigh < NEIGH_MIN)
-            error->all(FLERR,"Insufficient nodal neighbours found for material point");
-        }
-      }
-    }//itest1
-  }//iloop
-
-  // zero shape functions + derivatives
-  for (i = 0; i < nlocal; i++) {
-    for (jj = 0; jj < maxpartner; jj++) {
-      p[i][jj] = 0.0;
-      for (int d = 0; d < dim; d++) gradp[i][dim*jj+d] = 0.0;
-    }
-  }
-
-  // Main Loop: loop though each nd/mp pair and evaluate shape function and 
-  //    shape function gradient for each.  
-  const int max_iter = 100;
-  for (ii = 0; ii < inum; ii++) { // mp loop
-    i = ilist[ii]; // mp id
-    itype = type[i];
-
-    if (mask[i] & groupbit && itype == typeMP) { // mp test
-      jnum = npartner[i]; // number of nodal neighbours
-      jlist = partner[i]; // indices of nodal neighbours
-
-      // initial values for optimization problem
-      double lambda0[3] = {0,0,0}; // Lagrange multipliers
-      double lambda1[3] = {1,1,1}; 
-      double r[3] = {0,0,0}; // gradient of shape functions w.r.t lambda
-      double H[3][3] = {{0,0,0},{0,0,0},{0,0,0}};// Hessian of shape func. w.r.t lambda
-      double invH[3][3] = {{1,0,0},{0,1,0},{0,0,1}}; // Inverse Hessian
-      double det, norm_sq;
-      int iter = 0;
-      
-
-      // LME loop (Regularized Newton's Method)
-      do {
-        iter++;
-        lambda0[0] = lambda1[0];
-        lambda0[1] = lambda1[1];
-        lambda0[2] = lambda1[2];
-
-        // Guess at shape functions
-        double Z = 0.0; // sum of partition functions
-        for (jj = 0; jj < jnum; jj++) {
-          j = jlist[jj]; // nodal number
-          
-          double dx[3] = { (x[i][0]-x[j][0]),
-                           (x[i][1]-x[j][1]),
-                           (x[i][2]-x[j][2])};
-          double f = -beta * ( dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2] ) +
-                       1/h * ( lambda1[0]*dx[0] + lambda1[1]*dx[1] + lambda1[2]*dx[2] );
-          p[i][jj] = exp(f);
-          Z += p[i][jj];
-        }
-
-        // Evaluate Gradient and Hessian (regularized)
-        { // Rezero gradient and Hessian
-        r[0]=r[1]=r[2]=0.0;
-        H[0][0]=H[0][1]=H[0][2]=0.0;
-        H[1][0]=H[1][1]=H[1][2]=0.0;
-        H[2][0]=H[2][1]=H[2][2]=0.0;}
-        for (jj = 0; jj < jnum; jj++) {
-          j = jlist[jj];
-          p[i][jj] /= Z; // Normalized shape function value
-          double dx[3] = { (x[i][0]-x[j][0]),
-                           (x[i][1]-x[j][1]),
-                           (x[i][2]-x[j][2])};
-          // Gradient vector
-          r[0] += p[i][jj] * dx[0];
-          r[1] += p[i][jj] * dx[1];
-          r[2] += p[i][jj] * dx[2];
-
-          // Hessian Matrix (summation components)
-          H[0][0] += p[i][jj]*dx[0]*dx[0];
-          H[0][1] += p[i][jj]*dx[0]*dx[1];
-          H[0][2] += p[i][jj]*dx[0]*dx[2];
-          H[1][0] += p[i][jj]*dx[1]*dx[0];
-          H[1][1] += p[i][jj]*dx[1]*dx[1];
-          H[1][2] += p[i][jj]*dx[1]*dx[2];
-          H[2][0] += p[i][jj]*dx[2]*dx[0];
-          H[2][1] += p[i][jj]*dx[2]*dx[1];
-          H[2][2] += p[i][jj]*dx[2]*dx[2];
-          
-        }
-
-        r[0] /= h; r[1] /= h; r[2] /= h; 
-        double norm_r = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-        norm_r = sqrt(norm_r); // 2-norm of gradient
-        H[0][0] = H[0][0]/(h*h) - r[0]*r[0] + norm_r; 
-        H[0][1] = H[0][1]/(h*h) - r[0]*r[1]; 
-        H[0][2] = H[0][2]/(h*h) - r[0]*r[2];
-        H[1][0] = H[1][0]/(h*h) - r[1]*r[0];
-        H[1][1] = H[1][1]/(h*h) - r[1]*r[1] + norm_r;
-        H[1][2] = H[1][2]/(h*h) - r[1]*r[2];
-        H[2][0] = H[2][0]/(h*h) - r[2]*r[0];
-        H[2][1] = H[2][1]/(h*h) - r[2]*r[1]; 
-        H[2][2] = H[2][2]/(h*h) - r[2]*r[2] + norm_r;
-
-        // Invert Hessian Matrix
-        if (dim == 2) { // Invert 2D explicitly
-        det = H[0][0]*H[1][1] - H[0][1]*H[1][0];
-        invH[0][0] = H[1][1]/det;
-        invH[0][1] = -H[0][1]/det;
-        invH[1][0] = -H[1][0]/det;
-        invH[1][1] = H[0][0]/det;
-
-        invH[0][2] = invH[1][2] = 0.0; // identity for z-component
-        invH[2][0] = invH[2][1] = 0.0;
-        invH[2][2] = 1.0;
-        }
-        else if (dim == 3) { // Invert 3D explicitly
-        det = H[0][0] * ( H[2][2]*H[1][1] - H[2][1]*H[1][2] ) - 
-              H[1][0] * ( H[2][2]*H[0][1] - H[2][1]*H[0][2] ) + 
-              H[2][0] * ( H[1][2]*H[0][1] - H[1][1]*H[0][2] );
-
-        invH[0][0] = +( H[2][2]*H[1][1] - H[2][1]*H[1][2] ) / det;
-        invH[0][1] = -( H[2][2]*H[0][1] - H[2][1]*H[0][2] ) / det;
-        invH[0][2] = +( H[1][2]*H[0][1] - H[1][1]*H[0][2] ) / det;
-
-        invH[1][0] = -( H[2][2]*H[1][0] - H[2][0]*H[1][2] ) / det;
-        invH[1][1] = +( H[2][2]*H[0][0] - H[2][0]*H[0][2] ) / det;
-        invH[1][2] = -( H[1][2]*H[0][0] - H[1][0]*H[0][2] ) / det;
-
-        invH[2][0] = +( H[2][1]*H[1][0] - H[2][0]*H[1][1] ) / det;
-        invH[2][1] = -( H[2][1]*H[0][0] - H[2][0]*H[0][1] ) / det;
-        invH[2][2] = +( H[1][1]*H[0][0] - H[1][0]*H[0][1] ) / det;
-
-        }
-        
-        // Increment lambda1: lambda1 = lambda0 - invH*r 
-        {
-        lambda1[0] = lambda0[0] - ( invH[0][0]*r[0] + invH[0][1]*r[1] + invH[0][2]*r[2] );
-        lambda1[1] = lambda0[1] - ( invH[1][0]*r[0] + invH[1][1]*r[1] + invH[1][2]*r[2] );
-        lambda1[2] = lambda0[2] - ( invH[2][0]*r[0] + invH[2][1]*r[1] + invH[2][2]*r[2] );
-        }
-
-        // Test if max_iter exceeded or convergence otherwise failed
-        {
-        if (iter > max_iter) error->all(FLERR, "Maximum iterations reached without LME convergence to specified tolerance\n");
-        if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
-            (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
-            (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
-          error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
-        }
-        }
-
-        // Evaluate change in lambda
-        {norm_sq = (lambda0[0]-lambda1[0])*(lambda0[0]-lambda1[0]) +
-                  (lambda0[1]-lambda1[1])*(lambda0[1]-lambda1[1]) +
-                  (lambda0[2]-lambda1[2])*(lambda0[2]-lambda1[2]);
-        }
-
-      } while (norm_sq > LMDA_TOL_SQ); // Convergence while loop
-      
-      // Spatial Gradient of shape functions
-      for (jj = 0; jj < jnum; jj++) {
-        j = jlist[jj];
-        double dx[3] = { (x[i][0]-x[j][0]),
-                         (x[i][1]-x[j][1]),
-                         (x[i][2]-x[j][2]) };
-        if (dim == 2) {
-          gradp[i][dim*jj] += -p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
-          gradp[i][dim*jj+1] += -p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] );
-        }
-        else if (dim == 3) {
-          gradp[i][dim*jj] += -p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] + invH[0][2]*dx[2] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
-          gradp[i][dim*jj+1] += -p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] + invH[1][2]*dx[2] );
-          gradp[i][dim*jj+2] += -p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
-        }
-      }
-    
-    } // mp test
-  } // mp loop
-
-  // Adjust the below statistics --> print shape function statistics to the terminal
-  
-  // bond statistics
-  if (update->ntimestep > -1) {
-    n = 0;
-    int count = 0;
-    for (i = 0; i < nlocal; i++) {
-      itype = type[i];
-      if (mask[i] & groupbit && itype == typeMP) {
-        n += npartner[i];
-        count += 1;
-      }
-    }
-    int nall, countall;
-    MPI_Allreduce(&n, &nall, 1, MPI_INT, MPI_SUM, world);
-    MPI_Allreduce(&count, &countall, 1, MPI_INT, MPI_SUM, world);
-    if (countall < 1) countall = 1;
-
-    // if (comm->me == 0) {
-    //   if (screen) {
-    //     printf("\n>>========>>========>>========>>========>>========>>========>>========>>========\n");
-    //     fprintf(screen, "OTM neighbors:\n");
-    //     fprintf(screen, "  max # of neighbors for a single mp = %d\n", maxpartner);
-    //     fprintf(screen, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
-    //     printf(">>========>>========>>========>>========>>========>>========>>========>>========\n\n");
-    //   }
-    //   if (logfile) {
-    //     fprintf(logfile, "\nOTM neighbors:\n");
-    //     fprintf(logfile, "  max # of neighbors for a single particle = %d\n", maxpartner);
-    //     fprintf(logfile, "  average # of neighbors/particle in group tlsph = %g\n", (double) nall / countall);
-    //   }
-    // }
-  } 
+    error->all(FLERR,"Fix otm/lme/shape requires verlet method");
+  return;
 }
 
 /* ----------------------------------------------------------------------
@@ -607,6 +269,10 @@ void FixLME::pre_force(int vflag)
   double Rcut_sq = -log(TOL)/beta; 
   int dim = domain->dimension;
 
+  long long int ntimestep = update->ntimestep;
+  if (!(ntimestep % 100))
+    printf("\nTimestep = %lli\n",ntimestep);
+
   // zero npartner for all current atoms
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
@@ -621,6 +287,9 @@ void FixLME::pre_force(int vflag)
       jlist = firstneigh[i];
       jnum = numneigh[i];
       for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj];
+        j &= NEIGHMASK;
+        jtype = type[j];
         if ( (mask[j] & groupbit) && (jtype == typeND) ) {
           double rsq = 0.0; // Euclidean distance
           for (int d = 0; d < dim; d++)
@@ -863,7 +532,7 @@ void FixLME::pre_force(int vflag)
         if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
             (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
             (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
-
+          printf("\nLME Failed on particle i=%i on iteration %lli\n",i,ntimestep);
           error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
         }
         }
@@ -876,24 +545,21 @@ void FixLME::pre_force(int vflag)
         double dx[3] = { (x[i][0]-x[j][0]),
                          (x[i][1]-x[j][1]),
                          (x[i][2]-x[j][2]) };
-        if (dim == 2) {
-          gradp[i][dim*jj] = p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
-          gradp[i][dim*jj+1] = p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] );
-
+        if (dim == 2) { 
+          gradp[i][dim*jj] = -p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
+          gradp[i][dim*jj+1] = -p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] );
         }
         else if (dim == 3) {
-          gradp[i][dim*jj] += p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] + invH[0][2]*dx[2] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
-          gradp[i][dim*jj+1] += p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] + invH[1][2]*dx[2] );
-          gradp[i][dim*jj+2] += p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
+          gradp[i][dim*jj] = -p[i][jj]/(h*h) * ( invH[0][0]*dx[0] + invH[0][1]*dx[1] + invH[0][2]*dx[2] ); // Add p[i][jj]*K_a*grad(beta) term if beta becomes nonconstant
+          gradp[i][dim*jj+1] = -p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] + invH[1][2]*dx[2] );
+          gradp[i][dim*jj+2] = -p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
       }
     } // mp test
   } // mp loop
-
-  // Adjust the below statistics --> print shape function statistics to the terminal
   
   // bond statistics
-  if (update->ntimestep > -1) {
+  if (ntimestep > -1) {
     n = 0;
     int count = 0;
     for (i = 0; i < nlocal; i++) {
@@ -924,14 +590,12 @@ void FixLME::pre_force(int vflag)
     // }
   } 
 
-
-  {
-  // //DEBUG: print a file to compare the LME evaluations to those from MATLAB
-  // printf("timestep: %lli\n",update->ntimestep);
+  {//DEBUG: print a file to compare the LME evaluations to those from MATLAB
+  // printf("timestep: %lli\n",ntimestep);
 
   // // Files originally printed positions of nodes and mps. These are input to MATLAB to calc LME for comparison
   // // Now files
-  // if (update->ntimestep == 1) {
+  // if (ntimestep == 1) {
   //   FILE *MP_FILE_X;
   //   FILE *ND_FILE_X;
   //   FILE *FILE_LME;
@@ -944,14 +608,14 @@ void FixLME::pre_force(int vflag)
   //   if (MP_FILE_X!=NULL && ND_FILE_X!=NULL && FILE_LME!=NULL && FILE_LME_GRAD!=NULL) {
   //     fprintf(MP_FILE_X,"ID\tType\tx\ty\tz\n");
   //     fprintf(ND_FILE_X,"ID\tType\tx\ty\tz\n");
-  //     // fprintf(FILE_LME,"%% MP order is the same as in the mp_locations.txt file.\n"
-  //     //                 "%% I have printed up to the maxpartner value to make the array uniform.\n"
-  //     //                 "%% Non-partnered positions assigned a value of zero\n"
-  //     //                 "%% One line represents one mp\n");
-  //     // fprintf(FILE_LME_GRAD,"%% MP order is the same as in the mp_locations.txt file.\n"
-  //     //                 "%% I have printed up to the maxpartner value to make the array uniform. The order of gradients is x y x y ...\n"
-  //     //                 "%% Non-partnered positions assigned a value of zero\n"
-  //     //                 "%% One line represents one mp\n");
+  //     fprintf(FILE_LME,"%% MP order is the same as in the mp_locations.txt file.\n"
+  //                     "%% I have printed up to the maxpartner value to make the array uniform.\n"
+  //                     "%% Non-partnered positions assigned a value of zero\n"
+  //                     "%% One line represents one mp\n");
+  //     fprintf(FILE_LME_GRAD,"%% MP order is the same as in the mp_locations.txt file.\n"
+  //                     "%% I have printed up to the maxpartner value to make the array uniform. The order of gradients is x y x y ...\n"
+  //                     "%% Non-partnered positions assigned a value of zero\n"
+  //                     "%% One line represents one mp\n");
 
   //     for (ii = 0; ii < inum; ii++) { // iloop
   //       i = ilist[ii];
@@ -973,7 +637,7 @@ void FixLME::pre_force(int vflag)
   //           if (jj < jnum) {
   //             // print LME
   //             fprintf(FILE_LME,"%.8e ",p[i][jj]);
-  //             fprintf(FILE_LME_GRAD,"%.8e %.8e ",gradp[i][jj],gradp[i][jj+1]);
+  //             fprintf(FILE_LME_GRAD,"%.8e %.8e ",gradp[i][dim*jj],gradp[i][dim*jj+1]);
   //             }
   //           else {
   //             fprintf(FILE_LME,"%.8e ",0.0);
@@ -991,8 +655,6 @@ void FixLME::pre_force(int vflag)
   //   }
   // }
   }
-
-
 
 }
 
@@ -1178,4 +840,12 @@ int FixLME::size_restart(int nlocal) {
   return (2 + dim) * npartner[nlocal] + 2;
 }
 
+/* ----------------------------------------------------------------------
+  Returns the value of hMin 
+ ------------------------------------------------------------------------- */
+
+ double FixLME::compute_scalar(void) 
+ {
+   return hMin;
+ }
 

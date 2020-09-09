@@ -94,12 +94,12 @@ if (force->newton_pair)
 
 // Parse the input arguments
 for (index = 3; index < narg; index +=2) {
-  if (strcmp(arg[index],"mat_points") == 0) {
+  if (strcmp(arg[index],"MP") == 0) {
     // Find atom type of mps
     typeMP = force->numeric(FLERR,arg[index+1]);
     if (typeMP > ntypes) error->all(FLERR,"mat_points type does not exist");
   }
-  else if (strcmp(arg[index],"nodes") == 0) {
+  else if (strcmp(arg[index],"ND") == 0) {
     // Find atom type of nodes
     typeND = force->numeric(FLERR,arg[index+1]);
     if (typeND > ntypes) error->all(FLERR,"nodes type does not exist");
@@ -111,6 +111,7 @@ for (index = 3; index < narg; index +=2) {
 
   nevery = 1; // Operation performed every iteration
   time_integrate = 1;
+  
 
   atom->add_callback(0); // 0 for grow, 1 for restart, 2 for border comm (adds fix to a list of fixes to perform, I think...)
 
@@ -134,19 +135,6 @@ for (index = 3; index < narg; index +=2) {
     }
   }
 
-  //DEBUG
-  // double **x = atom->x;
-  // double **v = atom->v;
-  // printf("\n\nx = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
-  // printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
-  // printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
-  // printf("F = |%e %e %e|\n"
-  //        "    |%e %e %e|\n"
-  //        "    |%e %e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3],F[216][4],F[216][5],F[216][6],F[216][7],F[216][8]);
-  //   printf("Fdot = |%e %e %e|\n"
-  //          "       |%e %e %e|\n"
-  //          "       |%e %e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3],Fdot[216][4],Fdot[216][5],Fdot[216][6],Fdot[216][7],Fdot[216][8]);
-
 }
 
 /* ---------------------------------------------------------------------- */
@@ -154,18 +142,11 @@ for (index = 3; index < narg; index +=2) {
 FixOTMIntegrate::~FixOTMIntegrate()
 {
   if (copymode) return;
-  
-  // memory->destroy(F);
-  // memory->destroy(Fdot);
+
   return;
 }
 
-/* ----------------------------------------------------------------------
-  Material Points are moved after the nodes have been moved in the 
-  initial integration phase. I'm indecisive if I should put this as
-  an initial_integrate or post_integrate mask b/c I'm not sure exactly 
-  how the order of events happens w/in a stage.
-------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
 
 int FixOTMIntegrate::setmask()
 {
@@ -218,9 +199,6 @@ void FixOTMIntegrate::init_list(int id, NeighList *ptr)
 
 void FixOTMIntegrate::initial_integrate(int /*vflag*/)
 {
-  //DEBUG
-  // printf("MP Post_integrate %lli",update->ntimestep);
-
   int i, j, ii, jj, d1, d2, inum, jnum;
   int *ilist, *jlist;
   int itype, jtype;
@@ -232,7 +210,7 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
 
   double **x = atom->x;
   double **v = atom->v;
-  double **vest = atom->vest; // DEBUG: temporarily present while using SPH physics
+  // double **vest = atom->vest; // DEBUG: temporarily present while using SPH physics
   double **f = atom->f;
   double **F = atom->def_grad;
   double **Fdot = atom->def_rate;
@@ -269,9 +247,9 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
       x[i][2] += dtv * v[i][2];
 
       //DEBUG: temporarily present while using SPH physics
-      vest[i][0] = v[i][0] + dtfm * f[i][0];
-      vest[i][1] = v[i][1] + dtfm * f[i][1];
-      vest[i][2] = v[i][2] + dtfm * f[i][2];
+      // vest[i][0] = v[i][0] + dtfm * f[i][0];
+      // vest[i][1] = v[i][1] + dtfm * f[i][1];
+      // vest[i][2] = v[i][2] + dtfm * f[i][2];
     }
   }
 
@@ -319,40 +297,42 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
         }
       }
 
-      //DEBUG
+      
+
+    }
+  }
+  
+  //DEBUG
       // if (dim==2) {
       // printf("________________________\n"
-      //        "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
-      // printf("x = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
-      // printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
-      // printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
+      //        "Timestep = %lli\tMP = %i\n",update->ntimestep,16);
+      // printf("x = (%e %e %e)\n",x[16][0],x[16][1],x[16][2]);
+      // printf("v = (%e %e %e)\n",v[16][0],v[16][1],v[16][2]);
+      // printf("Volume = %e\nMass = %e\n",atom->vfrac[16],atom->rmass[16]);
       // printf("Fincr = |%e %e|\n"
       //        "        |%e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[1][0],Fincr[1][1]);
       // printf("F = |%e %e|\n"
-      //        "    |%e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3]);
+      //        "    |%e %e|\n",F[16][0],F[16][1],F[16][2],F[16][3]);
       // printf("Fdot = |%e %e|\n"
-      //        "       |%e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3]);
+      //        "       |%e %e|\n\n",Fdot[16][0],Fdot[16][1],Fdot[16][2],Fdot[16][3]);
       // }
       // else if (dim==3) {
       // printf("________________________\n"
       //        "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
-      // printf("x = (%e %e %e)\n",x[216][0],x[216][1],x[216][2]);
-      // printf("v = (%e %e %e)\n",v[216][0],v[216][1],v[216][2]);
-      // printf("Volume = %e\nMass = %e\n",atom->vfrac[216],atom->rmass[216]);
+      // printf("x = (%e %e %e)\n",x[16][0],x[16][1],x[16][2]);
+      // printf("v = (%e %e %e)\n",v[16][0],v[16][1],v[16][2]);
+      // printf("Volume = %e\nMass = %e\n",atom->vfrac[16],atom->rmass[16]);
       // printf("Fincr = |%e %e %e|\n"
       //        "        |%e %e %e|\n"
       //        "        |%e %e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[0][2],Fincr[1][0],Fincr[1][1],Fincr[1][2],Fincr[2][0],Fincr[2][1],Fincr[2][2]);
       // printf("F = |%e %e %e|\n"
       //        "    |%e %e %e|\n"
-      //        "    |%e %e %e|\n",F[216][0],F[216][1],F[216][2],F[216][3],F[216][4],F[216][5],F[216][6],F[216][7],F[216][8]);
+      //        "    |%e %e %e|\n",F[16][0],F[16][1],F[16][2],F[16][3],F[16][4],F[16][5],F[16][6],F[16][7],F[16][8]);
       // printf("Fdot = |%e %e %e|\n"
       //        "       |%e %e %e|\n"
-      //        "       |%e %e %e|\n\n",Fdot[216][0],Fdot[216][1],Fdot[216][2],Fdot[216][3],Fdot[216][4],Fdot[216][5],Fdot[216][6],Fdot[216][7],Fdot[216][8]);
+      //        "       |%e %e %e|\n\n",Fdot[16][0],Fdot[16][1],Fdot[16][2],Fdot[16][3],Fdot[16][4],Fdot[16][5],Fdot[16][6],Fdot[16][7],Fdot[16][8]);
       // }
 
-    }
-  }
-  
   return;  
 }
 

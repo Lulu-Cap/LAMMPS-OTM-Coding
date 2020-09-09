@@ -57,18 +57,18 @@ neigh_modify    every 10 delay 0 check yes # re-build neighbor list every 10 ste
 ####################################################################################################
 # READ GEOMETRY
 ####################################################################################################
-read_data   aluminum_strip_pull.data # nds are type 1, mps are type 2
+read_data   aluminum_strip_pull_moreMPs.data # nds are type 1, mps are type 2
   orthogonal box = (-10.1 -10.1 -0.5) to (10.1 10.1 0.5)
   1 by 1 by 1 MPI processor grid
   reading atoms ...
-  1241 atoms
+  3641 atoms
   reading velocities ...
-  1241 velocities
-  read_data CPU = 0.0539401 secs
+  3641 velocities
+  read_data CPU = 0.0271361 secs
 group tlsph type 1 # nds
 441 atoms in group tlsph
 group mp type 2 # mps
-800 atoms in group mp
+3200 atoms in group mp
 
 variable	 	l0 equal 1.0 # lattice spacing for creating particles
 # lattice		 	sq ${l0} # Square lattice with above spacing
@@ -85,7 +85,7 @@ variable	 	l0 equal 1.0 # lattice spacing for creating particles
 ####################################################################################################
 variable 	h equal 2.01*${l0} # SPH smoothing kernel radius
 variable 	h equal 2.01*1 
-variable gamma equal 3.0 # dimensional kernel width parameter
+variable gamma equal 4.0 # dimensional kernel width parameter
 # variable 	vol_one equal ${l0}^2 # volume of one particle -- assuming unit thickness
 variable 	skin equal ${h} # Verlet list range
 variable 	skin equal 2.01 
@@ -103,257 +103,143 @@ variable 	vel0 equal 0.02 # pull velocity
 region 		top block EDGE EDGE 9.0 EDGE EDGE EDGE units box
 region 		bot block EDGE EDGE EDGE -9.1 EDGE EDGE units box
 group           top region top
-82 atoms in group top
+202 atoms in group top
 group           bot region bot
-61 atoms in group bot
+181 atoms in group bot
 variable        vel_up equal ${vel0}*(1.0-exp(-0.01*time))
 variable        vel_up equal 0.02*(1.0-exp(-0.01*time))
 variable        vel_down equal -v_vel_up
-fix             veltop_fix top smd/setvel 0 v_vel_up 0
-fix             velbot_fix bot smd/setvel 0 v_vel_down 0
+fix             veltop_fix top otm/setvel 0 v_vel_up 0
+fix             velbot_fix bot otm/setvel 0 v_vel_down 0
 
 # LME Evaluation
 fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing ${l0} Locality ${gamma}
 fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality ${gamma}
-fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality 3
+fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality 4
 
 ####################################################################################################
 # INTERACTION PHYSICS / MATERIAL MODEL
 # We use polynomial EOS for the pressure and the Johnson Cook strength model
 # An integration point fails (cannot support tension anymore) if the plastic strain exceeds 0.5.
 ####################################################################################################
-pair_style      hybrid/overlay smd/tlsph 							   smd/hertz 2
-pair_coeff      1 1 smd/tlsph *COMMON ${rho} ${E} ${nu} ${q1} ${q2} ${hg} ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 ${E} ${nu} ${q1} ${q2} ${hg} ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 ${nu} ${q1} ${q2} ${hg} ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 ${q1} ${q2} ${hg} ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 ${q2} ${hg} ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 ${hg} ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 ${cp}    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 ${eosC3} ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 ${eosC4} ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 ${eosC5} ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 ${eosC6}   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  0.42 ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  0.42 0 ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  0.42 0 0.001 ${Troom} ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  0.42 0 0.001 298.15 ${Tmelt} ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  0.42 0 0.001 298.15 500.15 ${JC_M}                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
-pair_coeff      1 1 smd/tlsph *COMMON 1 70 0.3 0.56 0 10 1    	        *EOS_POLYNOMIAL 0 74.2 60.5 36.5 1.96 0 0   		*JOHNSON_COOK 0.3241 0.1138  0.42 0 0.001 298.15 500.15 1.34                 *FAILURE_MAX_PLASTIC_STRAIN 1.2                 *END
+# pair_style      hybrid/overlay smd/tlsph # 							   smd/hertz 2
+# pair_coeff      1 1 smd/tlsph *COMMON ${rho} ${E} ${nu} ${q1} ${q2} ${hg} ${cp} #    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6} #   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M} #                 *FAILURE_MAX_PLASTIC_STRAIN 1.2 #                 *END
 
-pair_coeff 		2 2 none
-pair_coeff 		1 2 smd/hertz 0 # If I use 'none' here it will not build the neighbour list as required
+# pair_coeff 		2 2 none
+# pair_coeff 		1 2 smd/hertz 0 # If I use 'none' here it will not build the neighbour list as required
+
+variable      Lag_strain equal 0 # index for Lagragian strain measure
+variable      Inf_strain equal 1 # index for Infinitesimal strain measure
+variable      Plane_strain equal 0
+variable      Plane_stress equal 1
+pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom ${l0} strain_measure ${Lag_strain} stress_measure ${Plane_strain}
+pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom 1 strain_measure ${Lag_strain} stress_measure ${Plane_strain}
+pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom 1 strain_measure 0 stress_measure ${Plane_strain}
+pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom 1 strain_measure 0 stress_measure 0
+pair_coeff  * * ${E} ${nu} # more efficient for user --> remove neighbour list in file
+pair_coeff  * * 70 ${nu} 
+pair_coeff  * * 70 0.3 
 
 ####################################################################################################
 # TIME INTEGRATION
 ####################################################################################################
-fix             dtfix tlsph smd/adjust_dt 0.1 # dynamically adjust time increment every step
+# fix             dtfix tlsph smd/adjust_dt 0.1 # dynamically adjust time increment every step
+
+# set dt at a constant value for now
+timestep 0.015
 fix             integration all otm/integrate mat_points 2 nodes 1
 
 ####################################################################################################
 # SPECIFY TRAJECTORY OUTPUT
 ####################################################################################################
-compute     dt_atom all smd/tlsph/dt
-compute 	p all smd/plastic/strain
-compute 	epsdot all smd/plastic/strain/rate
-compute 	S all smd/tlsph/stress # Cauchy stress tensor
-compute 	D all smd/tlsph/strain/rate
-compute 	E all smd/tlsph/strain
-compute 	nn all smd/tlsph/num/neighs # number of neighbors for each particle
-compute         shape all smd/tlsph/shape
-compute 	damage all smd/damage
-dump 		dump_id all custom 100 dump.LAMMPS id type x y z 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p 			c_E[1] c_E[2] c_E[3] c_E[4] c_E[5] c_E[6] 			c_shape[1] c_shape[2] c_shape[3] c_shape[4] c_shape[5] c_shape[6] c_shape[7] 			c_D[1] c_D[2] c_D[4] c_damage radius c_epsdot                         vx vy vz c_dt_atom
-dump_modify 	dump_id first yes
+# compute     dt_atom all smd/tlsph/dt
+# compute 	p all smd/plastic/strain
+# compute 	epsdot all smd/plastic/strain/rate
+# compute 	S all smd/tlsph/stress # Cauchy stress tensor
+# compute 	D all smd/tlsph/strain/rate
+# compute 	E all smd/tlsph/strain
+# compute 	nn all smd/tlsph/num/neighs # number of neighbors for each particle
+# compute         shape all smd/tlsph/shape
+# compute 	damage all smd/damage
+# dump 		dump_id all custom 100 dump.LAMMPS id type x y z # 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p # 			c_E[1] c_E[2] c_E[3] c_E[4] c_E[5] c_E[6] # 			c_shape[1] c_shape[2] c_shape[3] c_shape[4] c_shape[5] c_shape[6] c_shape[7] # 			c_D[1] c_D[2] c_D[4] c_damage radius c_epsdot #                         vx vy vz c_dt_atom
+# dump_modify 	dump_id first yes
+
+dump dump_id all atom 100 dump_LE.LAMMPS
+
+
+
+
 
 ####################################################################################################
 # STATUS OUTPUT
 ####################################################################################################
-variable stress equal 0.5*(f_velbot_fix[2]-f_veltop_fix[2])/20
-variable length equal xcm(top,y)-xcm(bot,y)
-variable strain equal (v_length-${length})/${length} # engineering strain
-variable strain equal (v_length-19.2560975609756)/${length} 
-variable strain equal (v_length-19.2560975609756)/19.2560975609756 
-variable time equal f_dtfix
-fix stress_curve all print 10 "${time} ${strain} ${stress}" file stress_strain.dat screen no
+# variable stress equal 0.5*(f_velbot_fix[2]-f_veltop_fix[2])/20
+# variable length equal xcm(top,y)-xcm(bot,y)
+# variable strain equal (v_length-${length})/${length} # engineering strain
+# variable time equal f_dtfix
+# fix stress_curve all print 10 "${time} ${strain} ${stress}" file stress_strain.dat screen no
 
-thermo 100
-thermo_style custom step dt f_dtfix time v_strain
+# thermo 100
+# thermo_style custom step dt f_dtfix time v_strain
 
 ####################################################################################################
 # RUN SIMULATION
 ####################################################################################################
 #fix 2 all enforce2d
-run 10000
+run 14400
 Neighbor list info ...
   update every 10 steps, delay 0 steps, check yes
   max neighbors/atom: 2000, page size: 100000
   master list distance cutoff = 6.03
   ghost atom cutoff = 6.03
   binsize = 3.015, bins = 7 7 1
-  5 neighbor lists, perpetual/occasional/extra = 5 0 0
-  (1) pair smd/tlsph, perpetual, skip from (5)
-      attributes: half, newton off, size
-      pair build: skip/half/size
-      stencil: none
-      bin: none
-  (2) pair smd/hertz, perpetual, skip from (5)
-      attributes: half, newton off, size
-      pair build: skip/half/size
-      stencil: none
-      bin: none
-  (3) fix otm/lme/shape, perpetual
+  3 neighbor lists, perpetual/occasional/extra = 3 0 0
+  (1) pair otm/elastic/linear, perpetual
       attributes: full, newton off
       pair build: full/bin/atomonly
       stencil: full/bin/2d
       bin: standard
-  (4) fix otm/integrate, perpetual, copy from (3)
+  (2) fix otm/lme/shape, perpetual, copy from (1)
       attributes: full, newton off
       pair build: copy
       stencil: none
       bin: none
-  (5) neighbor class addition, perpetual
-      attributes: half, newton off, size
-      pair build: half/size/bin/newtoff
-      stencil: half/bin/2d/newtoff
-      bin: standard
+  (3) fix otm/integrate, perpetual, copy from (1)
+      attributes: full, newton off
+      pair build: copy
+      stencil: none
+      bin: none
+Per MPI rank memory allocation (min/avg/max) = 96.04 | 96.04 | 96.04 Mbytes
+Step Temp E_pair E_mol TotEng Press Volume 
+       0            0            0            0            0            0    404.09121 
+   14400 2.2452245e+21            0            0    112.83527   0.22486575    501.78949 
+Loop time of 318.344 on 1 procs for 14400 steps with 3641 atoms
 
-TLSPH neighbors:
-  max # of neighbors for a single particle = 48
-  average # of neighbors/particle in group tlsph = 40.6259
-Per MPI rank memory allocation (min/avg/max) = 119.3 | 119.3 | 119.3 Mbytes
-Step Dt f_dtfix Time v_strain 
-       0        1e-16            0            0            0 
-     100  0.037770719    3.8234739    3.7770719 0.00014377122 
-     200    0.0380322    7.6150066      7.60644 0.00057282631 
-     300   0.03812542    11.423304    11.437626 0.0012816657 
-     400  0.038168954     15.23816    15.267582 0.0022596139 
-     500  0.038192485    19.056312    19.096242 0.0034963823 
-     600  0.036209418    22.763741    21.725651 0.0049020362 
-     700  0.037253687    26.313458    26.077581 0.0064147865 
-     800  0.037050611    29.938335    29.640489 0.0081973612 
-     900  0.035856719    33.617322    32.271047   0.01024405 
-    1000  0.036293568    37.271572    36.293568  0.012462548 
-    1100  0.037005635    40.963686    40.706199    0.0149199 
-    1200    0.0369965    44.708805      44.3958  0.017637179 
-    1300  0.037477303    48.427834    48.720494  0.020500346 
-    1400  0.038126774    52.164728    53.377484   0.02356946 
-    1500  0.037603609    55.904118    56.405413  0.026814874 
-    1600  0.037768863    59.653187    60.430181  0.030242076 
-    1700  0.037794242     63.38219    64.250211  0.033795459 
-    1800  0.037524478    67.120086    67.544061  0.037517899 
-    1900  0.037521153    70.827192    71.290191  0.041331003 
-    2000  0.037922034    74.585553    75.844068  0.045381157 
-    2100  0.037211039    78.346221    78.143182  0.049574958 
-    2200  0.037713897    82.104923    82.970572  0.053896303 
-    2300  0.037754529    85.865548    86.835418  0.058350447 
-    2400  0.037898486    89.622867    90.956365  0.062922446 
-    2500  0.037527899    93.361259    93.819746  0.067574702 
-    2600  0.035971582    97.107469    93.526112  0.072358153 
-    2700  0.036822293    100.91585    99.420192  0.077369734 
-    2800   0.03756041    104.64933    105.16915  0.082337694 
-    2900  0.035961841    108.42147    104.28934  0.087491382 
-    3000   0.03615758    112.15613    108.47274  0.092663332 
-    3100  0.038012056    115.92738    117.83737  0.098008559 
-    3200  0.037259932    119.69014    119.23178   0.10342524 
-    3300  0.036082229    123.46537    119.07135   0.10896145 
-    3400  0.033009544     127.2417    112.23245   0.11458401 
-    3500  0.032091477    130.92809    112.32017   0.12008589 
-    3600  0.036483719     134.6443    131.34139   0.12572865 
-    3700  0.036223686    138.38748    134.02764    0.1315102 
-    3800  0.038258624    142.08443    145.38277   0.13726057 
-    3900  0.037884485    145.80385    147.74949   0.14313598 
-    4000  0.037214913    149.52931    148.85965   0.14908973 
-    4100  0.036710523    153.24824    150.51314   0.15509294 
-    4200  0.033904289    156.99406    142.39801   0.16122299 
-    4300  0.033660028    160.69663    144.73812     0.167309 
-    4400  0.038350174     164.3632    168.74077   0.17336543 
-    4500  0.038551392    168.01393    173.48126   0.17943705 
-    4600  0.035910615    171.65638    165.18883   0.18554728 
-    4700   0.03244234    175.31397      152.479   0.19173955 
-    4800   0.03861074     178.9163    185.33155   0.19784213 
-    4900  0.035894676     182.4988    175.88391   0.20394514 
-    5000  0.038470628     186.0934    192.35314    0.2101338 
-    5100  0.025879986     189.6485    131.98793   0.21626478 
-    5200  0.031173947    193.20831    162.10452   0.22244966 
-    5300  0.040851141    196.77149    216.51104   0.22867936 
-    5400  0.040849548    200.37055    220.58756   0.23501437 
-    5500  0.040848423     203.9572    224.66632   0.24135951 
-    5600  0.040847409      207.536    228.74549   0.24772017 
-    5700  0.035747075     211.0896    203.75833   0.25405829 
-    5800  0.040846033    214.58752    236.90699   0.26031321 
-    5900  0.028055532    218.09006    165.52764   0.26660354 
-    6000  0.040845391    221.60375    245.07234   0.27293708 
-    6100  0.039507781    225.07866    240.99746   0.27921706 
-    6200  0.030091125    228.55336    186.56498   0.28552947 
-    6300   0.02702346    232.00922    170.24779   0.29183715 
-    6400  0.029914185    235.62096    191.45078   0.29854237 
-    6500  0.030086681    239.21335    195.56343   0.30522934 
-    6600  0.028092247    242.79425    185.40883   0.31191588 
-    6700  0.025443164    246.36077     170.4692   0.31858772 
-    6800  0.025953578    249.86233    176.48433   0.32514243 
-    6900   0.02695291    253.42132    185.97508   0.33184334 
-    7000  0.027948078    256.97212    195.63654   0.33854602 
-    7100  0.027037842    260.52818    191.96868   0.34527909 
-    7200  0.026613847    264.07704     191.6197    0.3520144 
-    7300  0.026864651    267.62339    196.11195   0.35875963 
-    7400  0.026167254    271.16027    193.63768   0.36550067 
-    7500  0.023563306    274.68607     176.7248   0.37222902 
-    7600  0.026854503    278.19012    204.09422   0.37892627 
-    7700  0.025466625    281.67579    196.09301   0.38560158 
-    7800    0.0261182    285.15477    203.72196   0.39227577 
-    7900  0.024993543    288.58086    197.44899   0.39884082 
-    8000  0.025955647    292.03015    207.64518    0.4054791 
-    8100  0.040859562    295.63395    330.96246   0.41253011 
-    8200  0.040861089    299.30295    335.06093   0.41974864 
-    8300  0.040862515    302.96573    339.15887   0.42696433 
-    8400  0.040863915    306.62381    343.25688   0.43418098 
-    8500  0.040865281    310.25951    347.35488   0.44136289 
-    8600  0.040866608    313.90685    351.45283   0.44858011 
-    8700  0.040868068    317.54187    355.55219   0.45578554 
-    8800  0.040869585    321.17214    359.65235   0.46299006 
-    8900  0.040870918    324.80548    363.75117   0.47021033 
-    9000  0.040872229    328.43537    367.85006   0.47743295 
-    9100  0.040873552    332.06279    371.94932   0.48466043 
-    9200  0.040874887    335.68816    376.04896   0.49189341 
-    9300  0.040876105    339.31429    380.14777   0.49913838 
-    9400   0.03239621    343.02503    304.52438   0.50658852 
-    9500  0.031078126    346.67522     295.2422   0.51391108 
-    9600  0.040879922    350.37139    392.44726   0.52134645 
-    9700  0.040881219     354.0288    396.54782   0.52870238 
-    9800   0.04088234    357.69782    400.64693   0.53609265 
-    9900  0.040883607    361.38158    404.74771   0.54352367 
-   10000  0.038419004    365.06284    384.19004   0.55095828 
-Loop time of 111.984 on 1 procs for 10000 steps with 1241 atoms
-
-95.9% CPU use with 1 MPI tasks x no OpenMP threads
+98.8% CPU use with 1 MPI tasks x no OpenMP threads
 
 MPI task timing breakdown:
 Section |  min time  |  avg time  |  max time  |%varavg| %total
 ---------------------------------------------------------------
-Pair    | 43.444     | 43.444     | 43.444     |   0.0 | 38.80
-Neigh   | 0.036114   | 0.036114   | 0.036114   |   0.0 |  0.03
-Comm    | 0.011178   | 0.011178   | 0.011178   |   0.0 |  0.01
-Output  | 0.88395    | 0.88395    | 0.88395    |   0.0 |  0.79
-Modify  | 67.559     | 67.559     | 67.559     |   0.0 | 60.33
-Other   |            | 0.0492     |            |       |  0.04
+Pair    | 8.2557     | 8.2557     | 8.2557     |   0.0 |  2.59
+Neigh   | 0.092605   | 0.092605   | 0.092605   |   0.0 |  0.03
+Comm    | 0.016504   | 0.016504   | 0.016504   |   0.0 |  0.01
+Output  | 0.66802    | 0.66802    | 0.66802    |   0.0 |  0.21
+Modify  | 309.16     | 309.16     | 309.16     |   0.0 | 97.12
+Other   |            | 0.1503     |            |       |  0.05
 
-Nlocal:    1241 ave 1241 max 1241 min
+Nlocal:    3641 ave 3641 max 3641 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
 Nghost:    0 ave 0 max 0 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    17578 ave 17578 max 17578 min
+Neighs:    0 ave 0 max 0 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
-FullNghs:  168290 ave 168290 max 168290 min
+FullNghs:  2.53159e+06 ave 2.53159e+06 max 2.53159e+06 min
 Histogram: 1 0 0 0 0 0 0 0 0 0
 
-Total # of neighbors = 168290
-Ave neighs/atom = 135.608
-Neighbor list builds = 6
+Total # of neighbors = 2531590
+Ave neighs/atom = 695.301
+Neighbor list builds = 4
 Dangerous builds = 0
-Total wall time: 0:01:52
+ce2d
+ERROR: Unknown command: ce2d (../input.cpp:232)
+Last command: ce2d

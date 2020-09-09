@@ -34,9 +34,9 @@ TO-DO:
     use. Maybe it makes more sense to make the stress matrix a particle 
     property? Anyway, it can't work to have different stresses for the same 
     mp depending on the node pair. Something must change.
---> Set up energy and virial computation options.
+--> Set up energy and virial computation options!!! For now just ignoring them
 --> Add a CFL criterion like was done with the SMD package
---> Interprocessor communication
+--> Interprocessor communication (no comm_forward stuff complete yet)
 */
 
 #include "pair_otm_linear_elastic.h"
@@ -46,6 +46,7 @@ TO-DO:
 #include "atom.h"
 #include "comm.h"
 #include "domain.h"
+#include "fix.h"
 #include "fix_lme.h"
 #include "force.h"
 #include "neighbor.h"
@@ -54,12 +55,15 @@ TO-DO:
 #include "update.h"
 #include "respa.h"
 #include "math_const.h"
+#include "modify.h"
 #include "memory.h"
 #include "error.h"
 #include "utils.h"
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
+
+#define MAX(A,B) ((A) > (B) ? (A) : (B))
 
 /* ---------------------------------------------------------------------- */
 
@@ -70,12 +74,14 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
 
   CauchyStress = NULL;
   detF = NULL;
+  strain_measure = stress_measure = -1;
 
   E = nu = NULL;
 
   dtCFL = 0.0; // initialize so safe if extracted on zeroth timestep
+  epsilon = 0.0;
 
-  comm_forward = 10; // 9 for Deformation Gradient Tensor, 1 for mass
+  comm_forward = 10; // 9 for Deformation Gradient Tensor, 1 for mass //DEBUG: I haven't done any comm stuff on this file
 
   // Grow and initialize arrays
   int nmax = atom->nmax;
@@ -87,6 +93,17 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
     detF[ii] = 1.0;
     for (int jj = 0; jj < n_sym; jj++){
       CauchyStress[ii][jj] = 0.0;
+    }
+    if (dim == 2) {
+      xest[[ii][0] = xest[ii][1] = 0.0;
+      Fincr[ii][0] = Fincr[ii][3] = 1.0;
+      Fincr[ii][1] = Fincr[ii][2] = 0.0;
+    }
+    else if (dim == 3) {
+      xest[[ii][0] = xest[ii][1] = xest[ii][2] = 0.0;
+      Fincr[ii][0] = Fincr[ii][4] = Fincr[ii][8] = 1.0;
+      Fincr[ii][1] = Fincr[ii][2] = Fincr[ii][3] = 0.0;
+      Fincr[ii][5] = Fincr[ii][6] = Fincr[ii][7] = 0.0;
     }
   }
 
@@ -103,7 +120,14 @@ PairOTMLinearElastic::~PairOTMLinearElastic()
     memory->destroy(CauchyStress);
     memory->destroy(detF);
 
+    memory->destroy(E);
+    memory->destroy(nu);
+
+    memory->destroy(Fincr);
+    memory->destroy(xest);
+
   }
+  return;
 }
 
 /* ----------------------------------------------------------------------
@@ -113,8 +137,11 @@ PairOTMLinearElastic::~PairOTMLinearElastic()
 void PairOTMLinearElastic::compute(int eflag, int vflag)
 {
   if (eflag != 0 || vflag != 0) {
-    error->all(FLERR,"Energy and Virial computations are not set up yet. Do not use fixes which require them. \n"
-               "Refer to integrate.h/.cpp for details");
+    eflag = 0;
+    vflag = 0;
+    // error->all(FLERR,"\n\nEnergy and Virial computations are not set up yet. Do not use fixes which require them. \n"
+    //            "Refer to integrate.h/.cpp for details\n\n");
+    printf("\n\nEnergy and Virial computations are not currently enabled\n\n");
   }
 
   int i, j, ii, jj, d, inum, jnum;
@@ -131,6 +158,11 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
    int *mask = atom->mask;
    int *type = atom->type;
 
+   if (update->ntimestep == 0) { // LME must occur first
+    int LME_index = modify->find_fix_by_style("otm/lme/shape");
+    modify->fix[LME_index]->pre_force(0);
+   }
+
    double **p =  atom->p;
    double **gradp = atom->gradp;
    int *npartner = atom->npartner;
@@ -141,11 +173,12 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
    inum = list->inum;
    ilist = list->ilist;
 
+   grow_arrays(atom->nmax);
+
   // Zero all nodal masses
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
-    itype = type[i];
-    if (itype == typeND) {
+    if (type[i] == typeND) {
       m[i] = 0.0;
     }
   }
@@ -171,12 +204,13 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
 
         // Convert F to Cauchy Stress 
         if (Stress_flag == 0) {
-          DefGrad2Cauchy(F[i],CauchyStress[i],E[itype][jtype],nu[itype][jtype],strain_measure); //TODO: See notes at top of file
-          double dens = m[i]/volume[i];
-          WvSpeed = ( E[itype][jtype] * (1-nu[itype][jtype]) ) / (dens * (1-nu[itype][jtype]) * (1-2*nu[itype][jtype]) );
-          WvSpeed = pow(WvSpeed,0.5);
+          DefGrad2Cauchy(F[i],CauchyStress[i],E[itype][jtype],nu[itype][jtype],strain_measure,stress_measure); 
           Stress_flag = 1; // Only calculate stress once per mp
         }
+
+        // double dens = m[i]/volume[i];
+        // WvSpeed = ( E[itype][jtype] * (1-nu[itype][jtype]) ) / (dens * (1+nu[itype][jtype]) * (1-2*nu[itype][jtype]) ); // DEBUG: something is really fucked up here. Not giving the right answer at all.
+        // WvSpeed = pow(WvSpeed,0.5);
 
         // Stress contribution to force: f += -volume * dot(CauchyStress,gradp) 
         if (dim == 2) {
@@ -205,10 +239,19 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
         */
 
         // CFL check based on wavespeed
-        double hMin = fixLME->hMin;
-        //double h = hNom; // DEBUG
-        double particle_dt = hMin/WvSpeed * 0.05;
-        dtCFL = (dtCFL < particle_dt) ? dtCFL : particle_dt;
+        // int LME_index = modify->find_fix_by_style("otm/lme/shape");
+        // hMin = modify->fix[LME_index]->compute_scalar();
+        // //double h = hNom; // DEBUG
+        // double SF = 0.1;
+        // double particle_dt = hMin/WvSpeed * SF;
+        // dtCFL = (dtCFL < particle_dt) ? dtCFL : particle_dt;
+        
+        // double dtNom = hNom/WvSpeed * SF;
+        // update->dt = dtNom;
+        // if (update->ntimestep == 0) {
+        //         update->dt = 1.0e-16;
+        // }
+        // update->dt = 1.0e-6;
 
       } // node loop
 
@@ -246,14 +289,13 @@ void PairOTMLinearElastic::allocate()
    They are useful for settings which will apply to all instances of that
    pairstyle. NOT for material parameters!
 
-   In this case, no cutoff needs to be specified - it has been dealt with 
-   in the fix_lme command run previously
-
    Parse the mp and nd styles as inputs w/ the format
 
-      pair_style otm/elastic/linear mat_points 1 nodes 2 hNom ${hNom}
+      pair_style otm/elastic/linear MP 1 ND 2 hNom ${hNom} strain ${strain_meas} stress ${stress_meas} eps ${epsilon}
 
-   This is the format common to other OTM commands.
+   This is similar format to other OTM commands. The stress argument is only 
+   required for 2D simulations. The hourglassing parameter assumes a value 
+   of zero if not specified.
 ------------------------------------------------------------------------- */
 
 void PairOTMLinearElastic::settings(int narg, char **arg)
@@ -263,14 +305,14 @@ void PairOTMLinearElastic::settings(int narg, char **arg)
 
   if (strcmp(atom_style, "otm") != 0)
     error->all(FLERR, "Illegal atom_style for otm pair_style. Use otm atoms");
-  if (narg != 6) error->all(FLERR,"Illegal pair_style command");
+  if ( !(narg == 8 || narg == 10 || narg == 12) ) error->all(FLERR,"Illegal pair_style command");
 
   for (int index = 0; index < narg; index += 2) {
-    if (strcmp(arg[index],"mat_points") == 0) {
+    if (strcmp(arg[index],"MP") == 0) {
       typeMP = force->numeric(FLERR,arg[index+1]);
       if (typeMP > ntypes) error->all(FLERR,"mat_points type does not exist");
     }
-    else if (strcmp(arg[index],"nodes") == 0) {
+    else if (strcmp(arg[index],"ND") == 0) {
       typeND = force->numeric(FLERR,arg[index+1]);
       if (typeND > ntypes) error->all(FLERR,"nodes type does not exist");
     }
@@ -278,12 +320,28 @@ void PairOTMLinearElastic::settings(int narg, char **arg)
       hNom = force->numeric(FLERR,arg[index+1]);
       if (hNom <= 0.0) error->all(FLERR,"Node spacing cannot be < 0");
     }
+    else if (strcmp(arg[index],"strain") == 0) {
+      strain_measure = force->numeric(FLERR,arg[index+1]);
+      if (strain_measure != 0 && strain_measure != 1) error->all(FLERR,"Invalid strain measure");
+    }
+    else if (strcmp(arg[index],"stress") == 0) {
+      stress_measure = force->numeric(FLERR,arg[index+1]);
+      if (stress_measure != 0 && stress_measure != 1) error->all(FLERR,"Invalid stress measure");
+    }
+    else if (strcmp(arg[index],"eps") == 0) {
+      epsilon = force->numeric(FLERR,arg[index+1]);
+      if (epsilon < 0) error->all(FLERR,"Invalid hourglass parameter");
+    }
     else {
       error->all(FLERR,"Unknown keyword identifier for fix otm/integrate_mp");
     }
   }
 
-  // Check if an LME computation has already occurred. If not, fuck. 
+  // Check if an LME computation has already occurred.
+  int LME_index = modify->find_fix_by_style("otm/lme/shape");
+  if (LME_index == -1)
+    error->all(FLERR,"Must compute LME Shape functions prior to pair interactions");
+
 
   return;
 
@@ -291,10 +349,17 @@ void PairOTMLinearElastic::settings(int narg, char **arg)
 }
 
 /* ----------------------------------------------------------------------
-   set coeffs for one or more type pairs
-   coefficients of the form
-   pair_coeff [type1] [type2] [Elastic Modulus] [Poisson Ratio]
-       -        [0]     [1]          [2]              [3]
+  set coeffs for one or more type pairs
+  coefficients of the form
+  pair_coeff [type1] [type2] [Elastic Modulus] [Poisson Ratio]
+      -        [0]     [1]          [2]              [3]
+
+  Mods: Must allow user to specify * * ${E} ${nu} and inside of this script
+  work it out to eliminate neighbour list redundancies. (i.e. Since it knows
+  which are nds and mps already, it takes those inputs and only builds a 
+  list between nd-mp and nd-nd (for the purpose of finding hMin. May 
+  eliminate later b/c of its inefficiency)).
+
 ------------------------------------------------------------------------- */
 // Both the nodes and mps must belong to the same material with this setup!!!
 void PairOTMLinearElastic::coeff(int narg, char **arg)
@@ -314,7 +379,9 @@ void PairOTMLinearElastic::coeff(int narg, char **arg)
   for (int i = ilo; i <= ihi; i++) {
     for (int j = MAX(jlo,i); j <= jhi; j++) {
       E[i][j] = E_one;
+      E[j][i] = E_one;
       nu[i][j] = nu_one;
+      nu[j][i] = nu_one;
       setflag[i][j] = 1;
       count++;
     }
@@ -340,8 +407,8 @@ void PairOTMLinearElastic::init_style()
 {
   // Request full neighbour list
   int irequest = neighbor->request(this, instance_me);
-  neighbor->requests[irequest]->pair = 0;  
-  neighbor->requests[irequest]->fix = 1;
+  neighbor->requests[irequest]->pair = 1;  
+  neighbor->requests[irequest]->fix = 0;
   neighbor->requests[irequest]->half = 0; // Why is half the default setting?
   neighbor->requests[irequest]->full = 1;
   neighbor->requests[irequest]->occasional = 0;
@@ -423,6 +490,7 @@ void PairOTMLinearElastic::write_restart_settings(FILE *fp)
   fwrite(&typeMP,sizeof(int),1,fp);
   fwrite(&typeND,sizeof(int),1,fp);
   fwrite(&hNom,sizeof(double),1,fp);
+  fwrite(&epsilon,sizeof(double),1,fp);
 }
 
 /* ----------------------------------------------------------------------
@@ -436,10 +504,12 @@ void PairOTMLinearElastic::read_restart_settings(FILE *fp)
     utils::sfread(FLERR,&typeMP,sizeof(int),1,fp,NULL,error);
     utils::sfread(FLERR,&typeND,sizeof(int),1,fp,NULL,error);
     utils::sfread(FLERR,&hNom,sizeof(double),1,fp,NULL,error);
+    utils::sfread(FLERR,&epsilon,sizeof(double),1,fp,NULL,error);
   }
   MPI_Bcast(&typeMP,1,MPI_INT,0,world);
   MPI_Bcast(&typeND,1,MPI_INT,0,world);
   MPI_Bcast(&hNom,1,MPI_DOUBLE,0,world);
+  MPI_Bcast(&epsilon,1,MPI_DOUBLE,0,world);
 }
 
 /* ----------------------------------------------------------------------
@@ -464,11 +534,13 @@ void PairOTMLinearElastic::write_data_all(FILE *fp)
 }
 
 // /* ---------------------------------------------------------------------- */
-//
-// double PairOTMLinearElastic::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
-//                          double /*factor_coul*/, double factor_lj,
-//                          double &fforce)
-// {
+
+double PairOTMLinearElastic::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
+                         double /*factor_coul*/, double factor_lj,
+                         double &fforce)
+{
+  error->all(FLERR,"The single function for PairOTMLinearElastic is not yet implemented for OTM");
+  return 0;
 //   double r2inv,r6inv,forcelj,philj;
 //
 //   r2inv = 1.0/rsq;
@@ -479,7 +551,7 @@ void PairOTMLinearElastic::write_data_all(FILE *fp)
 //   philj = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) -
 //     offset[itype][jtype];
 //   return factor_lj*philj;
-// }
+}
 
 /* ---------------------------------------------------------------------- */
 //TODO: add variables as necessary
@@ -490,6 +562,8 @@ void *PairOTMLinearElastic::extract(const char *str, int &dim)
   else if (strcmp(str,"detF") == 0) return (void *) detF;
   else if (strcmp(str,"smd/tlsph/dtCFL_ptr") == 0) return (void *) &dtCFL; //string format maintains compatibility with fix_otm_adjust_dt.h/.cpp for now
   else if (strcmp(str,"otm/hMin") == 0) return (void *) &hMin;
+  else if (strcmp(str,"Fincr") == 0) return (void *) &Fincr;
+  else if (strcmp(str,"xest") == 0) return (void *) &xest;
 
   return NULL;
 }
@@ -500,8 +574,11 @@ void *PairOTMLinearElastic::extract(const char *str, int &dim)
 // TODO: grow more variables as needed.
 void PairOTMLinearElastic::grow_arrays(int nmax)
 {
+  int dim = domain->dimension;
   memory->grow(CauchyStress, nmax, n_sym, "otm_pair_linear_elastic:CauchyStress");
   memory->grow(detF, nmax, "otm_pair_linear_elastic:detF");
+  memory->grow(Fincr,nmax,dim*dim, "otm_pair_linear_elastic:Fincr");
+  memory->grow(xest,nmax,dim, "otm_pair_linear_elastic:xest");
 }
 
 /* ----------------------------------------------------------------------
@@ -515,9 +592,12 @@ void PairOTMLinearElastic::grow_arrays(int nmax)
    strain_type: Specifies the strain measure to use. 
         0 --> Lagrange strain
         1 --> Infinitesimal strain
+   stress_type: Specifies the stress measure to use (2D only).
+        0 --> Plane strain
+        1 --> Plane Stress
 ------------------------------------------------------------------------- */
 
-void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, double nu, int strain_type)
+void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, double nu, int strain_type = -1, int stress_type = -1)
 {
   int dim = domain->dimension;
   double strain[3][3]; // strain matrix
@@ -536,12 +616,29 @@ void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, d
       strain[1][0] = 0.5 * (F[1] + F[2]);
       strain[1][1] = F[3] - 1;
     }
+    else {
+      error->all(FLERR,"Strain type must be specified as Lagrange or Infinitesimal "
+                       "with otm/elastic/linear pairstyle");
+    }
     
     // Make stress matrix
-    double C = E / ((1+nu)*(1-2*nu));
-    Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] ); // 11
-    Cauchy[1] = C * (1 - 2*nu) * strain[0][1]; // 12
-    Cauchy[2] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] ); // 22
+    if (stress_type == 0) { // Plane strain
+      double C = E / ((1+nu)*(1-2*nu));
+      Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] ); // 11
+      Cauchy[1] = C * (1 - 2*nu) * strain[0][1]; // 12
+      Cauchy[2] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] ); // 22
+    }
+    else if (strain_type == 1) { // Plane stress
+      double C = E / (1 - nu*nu);
+      Cauchy[0] = C * ( strain[0][0] + nu*strain[1][1] ); // 11
+      Cauchy[1] = C * (1 - 2*nu) * strain[0][1]; // 12
+      Cauchy[2] = C * ( nu*strain[0][0] + strain[1][1] ); // 22
+    }
+    else { // simply ignore 3D dimension. No physical meaning
+      error->all(FLERR,"Stress type must be specified as plane strain or plane stress for 2D simulations "
+                       "with otm/elastic/linear pairstyle");
+    }
+
   }
   else if (dim == 3) {
     // Make strain matrix
@@ -566,6 +663,10 @@ void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, d
       strain[2][0] = strain[0][2];
       strain[2][1] = strain[1][2];
       strain[2][2] = F[8] - 1;
+    }
+    else {
+      error->all(FLERR,"Strain type must be specified as Lagrange or Infinitesimal "
+                       "with otm/elastic/linear pairstyle");
     }
 
     // Make stress matrix

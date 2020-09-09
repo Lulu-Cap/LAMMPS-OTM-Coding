@@ -89,7 +89,7 @@ group           top region top
 group           bot region bot
 variable        vel_up equal ${vel0}*(1.0-exp(-0.01*time))
 variable        vel_down equal -v_vel_up
-fix             veltop_fix top smd/setvel 0 v_vel_up 0
+fix             veltop_fix top smd/setvel 0 v_vel_up 0 
 fix             velbot_fix bot smd/setvel 0 v_vel_down 0
 
 # LME Evaluation 

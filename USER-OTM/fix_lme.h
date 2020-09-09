@@ -59,14 +59,17 @@ class FixLME : public Fix {
   int size_restart(int);
   int maxsize_restart();
 
-  double hMin; // Minimum nodal spacing. Accessed by material models for finding dtCFL.
+  double compute_scalar();
+
+  
 
 
  protected:
   double gamma, h; // Locality parameter, average spacing
   int typeND, typeMP; // group indexes of nodal and material point groups 
   class NeighList *list;
-
+  double hMin; // Minimum nodal spacing. Accessed by material models for finding dtCFL. 
+  
   // I will likely need storage for neighbour list stuff.
   int nmax; // Maximum number of owned+ghost atoms in arrays on this proc
   int maxpartner; // The maximum partners of any atom on this proc

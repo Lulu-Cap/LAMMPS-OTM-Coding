@@ -24,7 +24,7 @@
 
 #ifdef FIX_CLASS
 
-FixStyle(smd/setvel,FixSMDSetVel)
+FixStyle(otm/setvel,FixOTMSetVel)
 
 #else
 
@@ -35,10 +35,10 @@ FixStyle(smd/setvel,FixSMDSetVel)
 
 namespace LAMMPS_NS {
 
-class FixSMDSetVel : public Fix {
+class FixOTMSetVel : public Fix {
  public:
-  FixSMDSetVel(class LAMMPS *, int, char **);
-  ~FixSMDSetVel();
+  FixOTMSetVel(class LAMMPS *, int, char **);
+  ~FixOTMSetVel();
   int setmask();
   void init();
   void setup(int);

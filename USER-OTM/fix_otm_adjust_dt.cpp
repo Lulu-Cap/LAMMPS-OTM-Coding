@@ -182,7 +182,7 @@ void FixSMDTlsphDtReset::end_of_step() {
                 dt = 1.0e-16;
         }
 
-        //printf("dtmin is now: %f, dt is now%f\n", dtmin, dt);
+        // printf("dtmin is now: %e, dt is now %e\n", dtmin, dt);
 
 
         update->dt = dt;

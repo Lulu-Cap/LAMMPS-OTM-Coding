@@ -94,17 +94,10 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
     for (int jj = 0; jj < n_sym; jj++){
       CauchyStress[ii][jj] = 0.0;
     }
-    if (dim == 2) {
-      xest[[ii][0] = xest[ii][1] = 0.0;
-      Fincr[ii][0] = Fincr[ii][3] = 1.0;
-      Fincr[ii][1] = Fincr[ii][2] = 0.0;
-    }
-    else if (dim == 3) {
-      xest[[ii][0] = xest[ii][1] = xest[ii][2] = 0.0;
-      Fincr[ii][0] = Fincr[ii][4] = Fincr[ii][8] = 1.0;
-      Fincr[ii][1] = Fincr[ii][2] = Fincr[ii][3] = 0.0;
-      Fincr[ii][5] = Fincr[ii][6] = Fincr[ii][7] = 0.0;
-    }
+      xest[ii][0] = xest[ii][1] = xest[ii][2] = 0.0;
+      Fincr[ii][0] = Fincr[ii][1] = Fincr[ii][2] = 0.0;
+      Fincr[ii][3] = Fincr[ii][4] = Fincr[ii][5] = 0.0;
+      Fincr[ii][6] = Fincr[ii][7] = Fincr[ii][8] = 0.0;
   }
 
 }
@@ -132,6 +125,7 @@ PairOTMLinearElastic::~PairOTMLinearElastic()
 
 /* ----------------------------------------------------------------------
    Compute the forces acting on each node
+    * Hourglassing forces have been added for stabilization
 ------------------------------------------------------------------------- */
 // TO DO: set up energy and virial calculation options
 void PairOTMLinearElastic::compute(int eflag, int vflag)
@@ -149,8 +143,11 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
   int itype, jtype;
 
   int dim = domain->dimension;
+  double dtv = update->dt;
+  double dtf = update->dt * force->ftm2v;
   
   double **x = atom->x;
+  double **v = atom->v;
   double **f = atom->f;
   double **F = atom->def_grad;
   double *volume = atom->vfrac;
@@ -183,8 +180,8 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
     }
   }
 
-   // Loop through mps and assign force contributions to nodes
-  for (ii =  0; ii < inum; ii++) { // mp loop
+  // Assign forces to each node
+  for (ii = 0; ii < inum; ii++) { // mp loop
     i = ilist[ii];
     itype = type[i];
 
@@ -254,11 +251,111 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
         // update->dt = 1.0e-6;
 
       } // node loop
-
     } // mp test
-
   } // mp loop
 
+  // Estimate future nodal positions
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    itype = type[i];
+    if (itype == typeND) {
+      xest[i][0] = x[i][0] + dtv*v[i][0] + dtf*dtf*f[i][0]/m[i];
+      xest[i][1] = x[i][1] + dtv*v[i][1] + dtf*dtf*f[i][1]/m[i];
+      xest[i][2] = x[i][2] + dtv*v[i][2] + dtf*dtf*f[i][2]/m[i];
+    }
+  }
+
+  // Estimate future mp positions and Fincr
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    itype = type[i];
+
+    if (itype == typeMP) {
+      jlist = partner[i];
+      jnum = npartner[i];
+
+      xest[i][0] = 0.0;
+      xest[i][1] = 0.0;
+      xest[i][2] = 0.0;
+
+      Fincr[i][0] = Fincr[i][1] = Fincr[i][2] = 0;
+      Fincr[i][3] = Fincr[i][4] = Fincr[i][5] = 0;
+      Fincr[i][6] = Fincr[i][7] = Fincr[i][8] = 0;
+
+      for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj];
+
+        xest[i][0] += p[i][jj]*xest[j][0];
+        xest[i][1] += p[i][jj]*xest[j][1];
+        xest[i][2] += p[i][jj]*xest[j][2];
+
+        Fincr[i][0] += xest[j][0] * gradp[i][dim*jj];
+        Fincr[i][1] += xest[j][0] * gradp[i][dim*jj+1];
+        Fincr[i][3] += xest[j][1] * gradp[i][dim*jj];
+        Fincr[i][4] += xest[j][1] * gradp[i][dim*jj+1];
+        
+
+        if (dim == 3) {
+          Fincr[i][2] += xest[i][0] * gradp[i][dim*jj+2];
+          Fincr[i][5] += xest[i][1] * gradp[i][dim*jj+2]; 
+          Fincr[i][6] += xest[i][2] * gradp[i][dim*jj];
+          Fincr[i][7] += xest[i][2] * gradp[i][dim*jj+1];
+          Fincr[i][8] += xest[i][2] * gradp[i][dim*jj+2];
+        }
+
+      }
+    }
+  }
+
+//DEBUG
+  // printf("Timestep = %lli\n",update->ntimestep);
+  // printf("xest[16] = (%e %e %e)\n",xest[16][0],xest[16][1],xest[16][2]);
+  // printf("Fincr[16] = |%e %e %e|\n"
+  //        "            |%e %e %e|\n"
+  //        "            |%e %e %e|\n",Fincr[16][0],Fincr[16][1],Fincr[16][2],Fincr[16][3],Fincr[16][4],Fincr[16][5],Fincr[16][6],Fincr[16][7],Fincr[16][8]);
+
+  // Adjust force term (hourglassing force)
+  double ERR, ERR_MAX = 0.0; //debug
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    itype = type[i];
+
+    if (itype == typeMP) {
+      jlist = partner[i];
+      jnum = npartner[i];
+
+      for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj];
+        
+        double dxest[3] = { (xest[j][0] - xest[i][0]),
+                            (xest[j][1] - xest[i][1]),
+                            (xest[j][2] - xest[i][2]) };
+        double dx[3] = { (x[j][0] - x[i][0]),
+                         (x[j][1] - x[i][1]),
+                         (x[j][2] - x[i][2]) };
+        double norm_dx = pow(dx[0]*dx[0] + dx[1]*dx[1] + dx[2]*dx[2],0.5);
+
+        double dxest2[3] = { ( Fincr[i][0]*dx[0] + Fincr[i][1]*dx[1] + Fincr[i][2]*dx[2] ),
+                             ( Fincr[i][3]*dx[0] + Fincr[i][4]*dx[1] + Fincr[i][5]*dx[2] ), 
+                             ( Fincr[i][6]*dx[0] + Fincr[i][7]*dx[1] + Fincr[i][8]*dx[2] ) };
+        double err[3] = { (dxest[0] - dxest2[0])/norm_dx,
+                          (dxest[1] - dxest2[1])/norm_dx,
+                          (dxest[2] - dxest2[2])/norm_dx };
+        
+        ERR = pow(err[0]*err[0] + err[1]*err[1] + err[2]*err[2], 0.5); //debug
+        ERR_MAX = (ERR > ERR_MAX) ? ERR : ERR_MAX;
+
+        f[j][0] -= epsilon * p[i][jj] * err[0];
+        f[j][1] -= epsilon * p[i][jj] * err[1];
+        f[j][2] -= epsilon * p[i][jj] * err[2];
+
+        if (dim == 2) f[j][2] = 0.0;
+      } 
+    }
+  }
+  if (!(update->ntimestep % 100))
+    printf("ERR_MAX = %e ",ERR_MAX);//debug
+  
 }
 
 /* ----------------------------------------------------------------------
@@ -574,11 +671,10 @@ void *PairOTMLinearElastic::extract(const char *str, int &dim)
 // TODO: grow more variables as needed.
 void PairOTMLinearElastic::grow_arrays(int nmax)
 {
-  int dim = domain->dimension;
   memory->grow(CauchyStress, nmax, n_sym, "otm_pair_linear_elastic:CauchyStress");
   memory->grow(detF, nmax, "otm_pair_linear_elastic:detF");
-  memory->grow(Fincr,nmax,dim*dim, "otm_pair_linear_elastic:Fincr");
-  memory->grow(xest,nmax,dim, "otm_pair_linear_elastic:xest");
+  memory->grow(Fincr,nmax,3*3, "otm_pair_linear_elastic:Fincr");
+  memory->grow(xest,nmax,3, "otm_pair_linear_elastic:xest");
 }
 
 /* ----------------------------------------------------------------------

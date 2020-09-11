@@ -28,7 +28,7 @@ nd.v = zeros(N_nd,1); % nd velocity
 
 % MP positions
 % Set up temp nodes for denser mp positions
-l_temp = l0/2;
+l_temp = l0; %/2;
 x_temp = -10:l_temp:10;
 [x_temp,y_temp] = meshgrid(x_temp);
 x_temp = [x_temp(:) y_temp(:)];
@@ -71,7 +71,7 @@ k_rad = repmat(h,num_atoms,1); % kernel radius - generally 2 to 3 times particle
 c_rad = repmat(h/2,num_atoms,1); % contact radius - generally half particle spacing
 
 %% Write data to files
-filename1 = 'aluminum_strip_pull_moreMPs.data';
+filename1 = 'aluminum_strip_pull.data';
 fileId1 = fopen(filename1,'w');
 
 % Header

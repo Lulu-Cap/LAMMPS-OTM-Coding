@@ -224,15 +224,15 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
   int *npartner = atom->npartner;
   int **partner = atom->partner;
 
-  inum = list->inum; // # of atoms neighbours are stored for
-  ilist = list->ilist; // local indices of I atom
+  inum = list->inum; 
+  ilist = list->ilist; 
 
   // Updates nodal positions 
-  for (ii = 0; ii < inum; ii++) { // for every atom w/neighbours
-    i = ilist[ii]; // atom index
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
     itype = type[i];
 
-    if (mask[i] & groupbit && itype == typeND) { // if atom is a node
+    if (mask[i] & groupbit && itype == typeND) {
       
       // Update velocities by half-step
       dtfm = dtf / m[i];
@@ -246,31 +246,27 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
       x[i][1] += dtv * v[i][1];
       x[i][2] += dtv * v[i][2];
 
-      //DEBUG: temporarily present while using SPH physics
-      // vest[i][0] = v[i][0] + dtfm * f[i][0];
-      // vest[i][1] = v[i][1] + dtfm * f[i][1];
-      // vest[i][2] = v[i][2] + dtfm * f[i][2];
     }
   }
 
   // Updates material point positions and properties
-  for (ii = 0; ii < inum; ii++) { // for every atom w/neighbours
-    i = ilist[ii]; // atom index
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii]; 
     itype = type[i];
 
-    if (mask[i] & groupbit && itype == typeMP) { // If atom is in the group and mp type
+    if (mask[i] & groupbit && itype == typeMP) {
       jlist = partner[i];
       jnum = npartner[i];
       
       // zero sums
       for (d1 = 0; d1 < dim; d1++) {
         x0[d1] = x[i][d1];
-        x[i][d1] = 0.0; // mp positions
+        x[i][d1] = 0.0;
         for (d2 = 0; d2 < dim; d2++) Fincr[d1][d2] = 0.0;
       }
 
-      for (jj = 0; jj < jnum; jj++) { // for each neighbour node
-        j = jlist[jj]; // neighbour index (local)
+      for (jj = 0; jj < jnum; jj++) {
+        j = jlist[jj]; 
         j &= NEIGHMASK; 
         if (type[j] != typeND) error->all(FLERR, "Partner list contains a particle which is not a node!\n");
 

@@ -124,6 +124,7 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
   partner = NULL; // mp-nd partner list
   npartner = NULL; // number of partners per atom
   def_grad = NULL; // deformation gradient tensor
+  def_incr = NULL; // incremental def. grad tensor
   def_rate = NULL; // deformation rate tensor
 
   // molecular info
@@ -204,7 +205,7 @@ Atom::Atom(LAMMPS *lmp) : Pointers(lmp)
 
   p_flag = gradp_flag = 0;
   npartner_flag = partner_flag = 0;
-  def_grad_flag = def_rate_flag = 0;
+  def_grad_flag = def_incr_flag = def_rate_flag = 0;
 
   // Peridynamic scale factor
 
@@ -327,6 +328,7 @@ Atom::~Atom()
   memory->destroy(npartner);
   memory->destroy(partner);
   memory->destroy(def_grad);
+  memory->destroy(def_incr);
   memory->destroy(def_rate);
 
   memory->destroy(dpdTheta);
@@ -466,7 +468,7 @@ void Atom::create_avec(const char *style, int narg, char **arg, int trysuffix)
   // USER-OTM
   p_flag = gradp_flag = 0;
   npartner_flag = partner_flag = 0;
-  def_grad_flag = def_rate_flag = 0;
+  def_grad_flag = def_incr_flag = def_rate_flag = 0;
 
   // create instance of AtomVec
   // use grow() to initialize atom-based arrays to length 1
@@ -2321,6 +2323,7 @@ void *Atom::extract(char *name)
   if (strcmp(name,"npartner") == 0) return (void *) npartner;
   if (strcmp(name,"partner") == 0) return (void *) partner;
   if (strcmp(name,"def_grad") == 0) return (void *) def_grad;
+  if (strcmp(name,"def_incr") == 0) return (void *) def_incr;
   if (strcmp(name,"def_rate") == 0) return (void *) def_rate;
 
   return NULL;

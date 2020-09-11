@@ -67,11 +67,6 @@ class PairOTMLinearElastic : public Pair {
 
   double **E, **nu; // Elastic modulus, Poisson ratio
 
-  // Hourglass Stabilization 
-  double epsilon;
-  double **Fincr; 
-  double **xest;
-
   class NeighList *list;
 
   // double *particle_dt;

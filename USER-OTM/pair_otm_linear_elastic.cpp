@@ -79,7 +79,6 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
   E = nu = NULL;
 
   dtCFL = 0.0; // initialize so safe if extracted on zeroth timestep
-  epsilon = 0.0;
 
   comm_forward = 10; // 9 for Deformation Gradient Tensor, 1 for mass //DEBUG: I haven't done any comm stuff on this file
 
@@ -93,17 +92,6 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
     detF[ii] = 1.0;
     for (int jj = 0; jj < n_sym; jj++){
       CauchyStress[ii][jj] = 0.0;
-    }
-    if (dim == 2) {
-      xest[[ii][0] = xest[ii][1] = 0.0;
-      Fincr[ii][0] = Fincr[ii][3] = 1.0;
-      Fincr[ii][1] = Fincr[ii][2] = 0.0;
-    }
-    else if (dim == 3) {
-      xest[[ii][0] = xest[ii][1] = xest[ii][2] = 0.0;
-      Fincr[ii][0] = Fincr[ii][4] = Fincr[ii][8] = 1.0;
-      Fincr[ii][1] = Fincr[ii][2] = Fincr[ii][3] = 0.0;
-      Fincr[ii][5] = Fincr[ii][6] = Fincr[ii][7] = 0.0;
     }
   }
 
@@ -122,9 +110,6 @@ PairOTMLinearElastic::~PairOTMLinearElastic()
 
     memory->destroy(E);
     memory->destroy(nu);
-
-    memory->destroy(Fincr);
-    memory->destroy(xest);
 
   }
   return;
@@ -154,37 +139,28 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
   double **f = atom->f;
   double **F = atom->def_grad;
   double *volume = atom->vfrac;
-  double *m = atom->rmass;
-   int *mask = atom->mask;
-   int *type = atom->type;
+  int *mask = atom->mask;
+  int *type = atom->type;
 
-   if (update->ntimestep == 0) { // LME must occur first
-    int LME_index = modify->find_fix_by_style("otm/lme/shape");
-    modify->fix[LME_index]->pre_force(0);
-   }
-
-   double **p =  atom->p;
-   double **gradp = atom->gradp;
-   int *npartner = atom->npartner;
-   int **partner = atom->partner;
-
-   //ev_init(eflag,vflag); 
-
-   inum = list->inum;
-   ilist = list->ilist;
-
-   grow_arrays(atom->nmax);
-
-  // Zero all nodal masses
-  for (ii = 0; ii < inum; ii++) {
-    i = ilist[ii];
-    if (type[i] == typeND) {
-      m[i] = 0.0;
-    }
+  if (update->ntimestep == 0) { // LME must occur first
+  int LME_index = modify->find_fix_by_style("otm/lme/shape");
+  modify->fix[LME_index]->pre_force(0);
   }
 
-   // Loop through mps and assign force contributions to nodes
-  for (ii =  0; ii < inum; ii++) { // mp loop
+  double **p =  atom->p;
+  double **gradp = atom->gradp;
+  int *npartner = atom->npartner;
+  int **partner = atom->partner;
+
+  //ev_init(eflag,vflag); 
+
+  inum = list->inum;
+  ilist = list->ilist;
+
+  grow_arrays(atom->nmax);
+
+  // Assign forces to each node
+  for (ii = 0; ii < inum; ii++) { // mp loop
     i = ilist[ii];
     itype = type[i];
 
@@ -228,9 +204,6 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
                                  + gradp[i][dim*jj+1]*CauchyStress[i][4] 
                                  + gradp[i][dim*jj+2]*CauchyStress[i][5] );
         }
-        
-        // Contribution to nodal 'mass'
-        m[j] += m[i]*p[i][jj];
 
         // Body force contribution
         /* Current implementation does not include this term. Use gravity fix instead
@@ -254,11 +227,9 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
         // update->dt = 1.0e-6;
 
       } // node loop
-
     } // mp test
-
   } // mp loop
-
+  
 }
 
 /* ----------------------------------------------------------------------
@@ -291,11 +262,10 @@ void PairOTMLinearElastic::allocate()
 
    Parse the mp and nd styles as inputs w/ the format
 
-      pair_style otm/elastic/linear MP 1 ND 2 hNom ${hNom} strain ${strain_meas} stress ${stress_meas} eps ${epsilon}
+      pair_style otm/elastic/linear MP 1 ND 2 hNom ${hNom} strain ${strain_meas} stress ${stress_meas}
 
    This is similar format to other OTM commands. The stress argument is only 
-   required for 2D simulations. The hourglassing parameter assumes a value 
-   of zero if not specified.
+   required for 2D simulations.
 ------------------------------------------------------------------------- */
 
 void PairOTMLinearElastic::settings(int narg, char **arg)
@@ -305,7 +275,7 @@ void PairOTMLinearElastic::settings(int narg, char **arg)
 
   if (strcmp(atom_style, "otm") != 0)
     error->all(FLERR, "Illegal atom_style for otm pair_style. Use otm atoms");
-  if ( !(narg == 8 || narg == 10 || narg == 12) ) error->all(FLERR,"Illegal pair_style command");
+  if ( !(narg == 8 || narg == 10) ) error->all(FLERR,"Illegal pair_style command");
 
   for (int index = 0; index < narg; index += 2) {
     if (strcmp(arg[index],"MP") == 0) {
@@ -327,10 +297,6 @@ void PairOTMLinearElastic::settings(int narg, char **arg)
     else if (strcmp(arg[index],"stress") == 0) {
       stress_measure = force->numeric(FLERR,arg[index+1]);
       if (stress_measure != 0 && stress_measure != 1) error->all(FLERR,"Invalid stress measure");
-    }
-    else if (strcmp(arg[index],"eps") == 0) {
-      epsilon = force->numeric(FLERR,arg[index+1]);
-      if (epsilon < 0) error->all(FLERR,"Invalid hourglass parameter");
     }
     else {
       error->all(FLERR,"Unknown keyword identifier for fix otm/integrate_mp");
@@ -490,7 +456,6 @@ void PairOTMLinearElastic::write_restart_settings(FILE *fp)
   fwrite(&typeMP,sizeof(int),1,fp);
   fwrite(&typeND,sizeof(int),1,fp);
   fwrite(&hNom,sizeof(double),1,fp);
-  fwrite(&epsilon,sizeof(double),1,fp);
 }
 
 /* ----------------------------------------------------------------------
@@ -504,12 +469,10 @@ void PairOTMLinearElastic::read_restart_settings(FILE *fp)
     utils::sfread(FLERR,&typeMP,sizeof(int),1,fp,NULL,error);
     utils::sfread(FLERR,&typeND,sizeof(int),1,fp,NULL,error);
     utils::sfread(FLERR,&hNom,sizeof(double),1,fp,NULL,error);
-    utils::sfread(FLERR,&epsilon,sizeof(double),1,fp,NULL,error);
   }
   MPI_Bcast(&typeMP,1,MPI_INT,0,world);
   MPI_Bcast(&typeND,1,MPI_INT,0,world);
   MPI_Bcast(&hNom,1,MPI_DOUBLE,0,world);
-  MPI_Bcast(&epsilon,1,MPI_DOUBLE,0,world);
 }
 
 /* ----------------------------------------------------------------------
@@ -533,7 +496,7 @@ void PairOTMLinearElastic::write_data_all(FILE *fp)
       fprintf(fp,"%d %d %g %g\n",i,j,E[i][j],nu[i][j]);
 }
 
-// /* ---------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
 
 double PairOTMLinearElastic::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double factor_lj,
@@ -562,8 +525,6 @@ void *PairOTMLinearElastic::extract(const char *str, int &dim)
   else if (strcmp(str,"detF") == 0) return (void *) detF;
   else if (strcmp(str,"smd/tlsph/dtCFL_ptr") == 0) return (void *) &dtCFL; //string format maintains compatibility with fix_otm_adjust_dt.h/.cpp for now
   else if (strcmp(str,"otm/hMin") == 0) return (void *) &hMin;
-  else if (strcmp(str,"Fincr") == 0) return (void *) &Fincr;
-  else if (strcmp(str,"xest") == 0) return (void *) &xest;
 
   return NULL;
 }
@@ -574,11 +535,8 @@ void *PairOTMLinearElastic::extract(const char *str, int &dim)
 // TODO: grow more variables as needed.
 void PairOTMLinearElastic::grow_arrays(int nmax)
 {
-  int dim = domain->dimension;
   memory->grow(CauchyStress, nmax, n_sym, "otm_pair_linear_elastic:CauchyStress");
   memory->grow(detF, nmax, "otm_pair_linear_elastic:detF");
-  memory->grow(Fincr,nmax,dim*dim, "otm_pair_linear_elastic:Fincr");
-  memory->grow(xest,nmax,dim, "otm_pair_linear_elastic:xest");
 }
 
 /* ----------------------------------------------------------------------

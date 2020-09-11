@@ -104,6 +104,7 @@ class Atom : protected Pointers {
   int *npartner; // number of nodal partners per mp
   int **partner; // nodal partner IDs
   double **def_grad; // Deformation gradient tensor
+  double **def_incr; // Incremental deformation gradient tensor
   double **def_rate; // Deformation rate tensor
 
   // USER-DPD package
@@ -187,6 +188,7 @@ class Atom : protected Pointers {
   int npartner_flag;
   int partner_flag;
   int def_grad_flag;
+  int def_incr_flag; 
   int def_rate_flag;
   
   // Peridynamics scale factor, used by dump cfg

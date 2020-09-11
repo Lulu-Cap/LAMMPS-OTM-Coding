@@ -53,7 +53,7 @@ using namespace LAMMPS_NS;
 using namespace FixConst;
 using namespace std;
 #define DELTA 16384 // what?
-#define TOL 1.0e-15 // machine precision used for cutoff radii
+#define TOL 1.0e-16 // machine precision used for cutoff radii
 #define LMDA_TOL_SQ 1.0e-8*1.0e-8
 #define NEIGH_MIN 5
 #define NEIGH_MAX 100
@@ -91,8 +91,8 @@ TO-DO:
 FixLME::FixLME(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg)
 {
-// fix 1 all otm/lme/shape mat_points 1 nodes 2 Spacing ${h} Locality ${gamma}
-//    [0][1]      [2]          [3]   [4] [5] [6]  [7]   [8]    [9]      [10]
+// fix 1 all otm/lme/shape MP 1 ND 2 hNom ${h} Locality ${gamma}
+//    [0][1]      [2]     [3][4][5][6][7] [8]    [9]      [10]
 
 int index;
 int ntypes = atom->ntypes;
@@ -117,12 +117,12 @@ for (index = 3; index < narg; index +=2) {
   if (strcmp(arg[index],"MP") == 0) {
     // Find atom type of mps
     typeMP = force->numeric(FLERR,arg[index+1]);
-    if (typeMP > ntypes) error->all(FLERR,"mat_points type does not exist");
+    if (typeMP > ntypes || typeMP < 1) error->all(FLERR,"mat_points type does not exist");
   }
   else if (strcmp(arg[index],"ND") == 0) {
     // Find atom type of nodes
     typeND = force->numeric(FLERR, arg[index+1]);
-    if (typeND > ntypes) error->all(FLERR,"nodes type does not exist");
+    if (typeND > ntypes || typeND < 1) error->all(FLERR,"nodes type does not exist");
   }
   else if (strcmp(arg[index],"hNom") == 0) {
     h = force->numeric(FLERR,arg[index+1]);
@@ -236,7 +236,8 @@ void FixLME::setup(int vflag)
 
 /* ----------------------------------------------------------------------
   Compute shape functions and shape function gradients before any forces
-  are computed
+  are computed.
+  Also compute nodal masses (projections of mp masses via shape functions)
 ------------------------------------------------------------------------- */
 
 void FixLME::pre_force(int vflag)
@@ -254,15 +255,14 @@ void FixLME::pre_force(int vflag)
   double **gradp = atom->gradp;
 
   double **x = atom->x;
-  double *radius = atom->radius; // Do I need this?
+  double *m = atom->rmass;
   int *mask = atom->mask; 
   int *type = atom->type;
-  tagint *tag = atom->tag; // wtf?
-  //NeighList *list = pair->list; //
-  inum = list->inum; // # of atoms neighbours are stored for
-  ilist = list->ilist; // local indices of I atoms
-  numneigh = list->numneigh; // # of J neighbours for each I atom
-  firstneigh = list->firstneigh; // ptr to 1st J int value of each I atom
+  tagint *tag = atom->tag; 
+  inum = list->inum;
+  ilist = list->ilist; 
+  numneigh = list->numneigh; 
+  firstneigh = list->firstneigh; 
 
   // Cutoff Radius
   double beta = gamma / (h*h); 
@@ -270,14 +270,14 @@ void FixLME::pre_force(int vflag)
   int dim = domain->dimension;
 
   long long int ntimestep = update->ntimestep;
-  if (!(ntimestep % 100))
+  if (!(ntimestep % 100)) 
     printf("\nTimestep = %lli\n",ntimestep);
 
   // zero npartner for all current atoms
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
 
-  // Find the max # of partners --> very important to do before allocating memory!
+  // Find the max # of partners before allocating memory
   maxpartner = NEIGH_MIN;
   for (ii = 0; ii < nlocal; ii++) {
     int count = 0;
@@ -333,7 +333,8 @@ void FixLME::pre_force(int vflag)
           else if (itype == typeND) { //node
             if (rsq < hMin*hMin && rsq > 0.0) 
               hMin = pow(rsq,0.5); // assign hMin
-            if (jj == 1) {
+            if (jj == 0) {
+              m[i] = 0.0;
               npartner[i] = -1;
               partner[i] = NULL;
             }
@@ -342,45 +343,45 @@ void FixLME::pre_force(int vflag)
       }//jloop
 
       {
-        // If insufficient neighbours based on TOL criterion, get the 
-        // closest ones
-        /*Note: Improve this algorithm by renormalizing the TOL instead!
-        See notes at top or in logbook for details*/
-        if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
-          npartner[i] = NEIGH_MIN;
-          int rsq_closest[NEIGH_MIN];
-          int nodal_neigh = 0;
+        // // If insufficient neighbours based on TOL criterion, get the 
+        // // closest ones
+        // /*Note: Improve this algorithm by renormalizing the TOL instead!
+        // See notes at top or in logbook for details*/
+        // if ( (npartner[i] < NEIGH_MIN) && (itype == typeMP) ) {
+        //   npartner[i] = NEIGH_MIN;
+        //   int rsq_closest[NEIGH_MIN];
+        //   int nodal_neigh = 0;
 
-          for (jj = 0; jj < jnum; jj++) { //jloop
-            j = jlist[jj];
-            j &= NEIGHMASK;
-            jtype = type[j];
+        //   for (jj = 0; jj < jnum; jj++) { //jloop
+        //     j = jlist[jj];
+        //     j &= NEIGHMASK;
+        //     jtype = type[j];
 
-            if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
-              double rsq = 0.0;
-              for (int d = 0; d < dim; d++)
-                rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
+        //     if ( (mask[j] & groupbit) && (jtype == typeND) ) { //jtest
+        //       double rsq = 0.0;
+        //       for (int d = 0; d < dim; d++)
+        //         rsq += (x[i][d] - x[j][d]) * (x[i][d] - x[j][d]);
               
-              if (nodal_neigh < NEIGH_MIN) { // Assign first values
-                partner[i][nodal_neigh] = j;
-                rsq_closest[nodal_neigh] = rsq;
-                nodal_neigh++;
-              }
+        //       if (nodal_neigh < NEIGH_MIN) { // Assign first values
+        //         partner[i][nodal_neigh] = j;
+        //         rsq_closest[nodal_neigh] = rsq;
+        //         nodal_neigh++;
+        //       }
 
-              for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
-                if (rsq < rsq_closest[kk]) {
-                  partner[i][kk] = j;
-                  rsq_closest[kk] = rsq;
-                }
+        //       for (int kk = 0; kk < NEIGH_MIN; kk++) { // Check for closer nds
+        //         if (rsq < rsq_closest[kk]) {
+        //           partner[i][kk] = j;
+        //           rsq_closest[kk] = rsq;
+        //         }
 
-              }
+        //       }
 
-            } //jtest
-          } //jloop
-          if (nodal_neigh < NEIGH_MIN)
-            error->all(FLERR,"Insufficient nodal neighbours found for material point");
+        //     } //jtest
+        //   } //jloop
+        //   if (nodal_neigh < NEIGH_MIN)
+        //     error->all(FLERR,"Insufficient nodal neighbours found for material point");
         }
-      }
+    
     }//itest1
   }//iloop
 
@@ -539,9 +540,11 @@ void FixLME::pre_force(int vflag)
 
       } while (norm_sq > LMDA_TOL_SQ); // Convergence while loop
       
-      // Spatial Gradient of shape functions
+      // Spatial Gradient of shape functions & nodal masses (lumped sum)
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
+
+        // Spatial gradient
         double dx[3] = { (x[i][0]-x[j][0]),
                          (x[i][1]-x[j][1]),
                          (x[i][2]-x[j][2]) };
@@ -554,6 +557,9 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj+1] = -p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] + invH[1][2]*dx[2] );
           gradp[i][dim*jj+2] = -p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
+
+        // Lumped nodal masses
+        m[j] += m[i]*p[i][jj];
       }
     } // mp test
   } // mp loop

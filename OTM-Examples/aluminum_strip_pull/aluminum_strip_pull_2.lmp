@@ -156,7 +156,7 @@ fix             integration all otm/integrate MP 2 ND 1
 #                         vx vy vz c_dt_atom
 # dump_modify 	dump_id first yes
 
-dump dump_id all atom 25 dump_LE.LAMMPS
+dump dump_id all atom 100 dump_LE.LAMMPS
 
 
 

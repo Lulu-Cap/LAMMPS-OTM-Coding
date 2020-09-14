@@ -15,7 +15,7 @@ variable 	nu equal 0.3 # Poisson ratio
 variable 	rho equal 1 # initial mass density
 variable        q1 equal 0.56 # standard artificial viscosity linear coefficient
 variable        q2 equal 0.0  # standard artificial viscosity quadratic coefficient
-variable        hg equal 10.0 # hourglass control coefficient
+# variable        hg equal 10.0 # hourglass control coefficient
 variable        cp equal 1.0 # heat capacity of material -- not used here
 
 variable        JC_A equal 0.3241 # Johnson Cook parameters
@@ -83,6 +83,11 @@ neighbor        ${skin} bin
 # set 		group all diameter ${h} # set SPH kernel radius (the name is deceiving, but pass it the radius)
 
 ####################################################################################################
+# DEFINE HOURGLASS ERROR CORRECTION
+####################################################################################################
+variable hg equal 1000
+fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
+####################################################################################################
 # DEFINE VELOCITY BOUNDARY CONDITIONS
 ####################################################################################################
 variable 	vel0 equal 0.02 # pull velocity
@@ -119,8 +124,7 @@ variable      Lag_strain equal 0 # index for Lagragian strain measure
 variable      Inf_strain equal 1 # index for Infinitesimal strain measure
 variable      Plane_strain equal 0 
 variable      Plane_stress equal 1
-variable      eps equal 100000
-pair_style  otm/elastic/linear MP 2 ND 1 hNom ${l0} strain ${Lag_strain} stress ${Plane_strain} eps ${eps}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom ${l0} strain ${Lag_strain} stress ${Plane_strain}
 pair_coeff  * * ${E} ${nu} # more efficient for user --> remove neighbour list in file
 
 ####################################################################################################
@@ -152,7 +156,7 @@ fix             integration all otm/integrate MP 2 ND 1
 #                         vx vy vz c_dt_atom
 # dump_modify 	dump_id first yes
 
-dump dump_id all atom 100 dump_LE.LAMMPS
+dump dump_id all atom 25 dump_LE.LAMMPS
 
 
 
@@ -174,4 +178,4 @@ dump dump_id all atom 100 dump_LE.LAMMPS
 # RUN SIMULATION
 ####################################################################################################
 #fix 2 all enforce2d
-run 14400
+run 26000

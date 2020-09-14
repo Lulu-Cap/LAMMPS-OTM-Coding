@@ -16,7 +16,7 @@ variable 	nu equal 0.3 # Poisson ratio
 variable 	rho equal 1 # initial mass density
 variable        q1 equal 0.56 # standard artificial viscosity linear coefficient
 variable        q2 equal 0.0  # standard artificial viscosity quadratic coefficient
-variable        hg equal 10.0 # hourglass control coefficient
+# variable        hg equal 10.0 # hourglass control coefficient
 variable        cp equal 1.0 # heat capacity of material -- not used here
 
 variable        JC_A equal 0.3241 # Johnson Cook parameters
@@ -64,7 +64,7 @@ read_data   aluminum_strip_pull_moreMPs.data # nds are type 1, mps are type 2
   3641 atoms
   reading velocities ...
   3641 velocities
-  read_data CPU = 0.0271361 secs
+  read_data CPU = 0.219413 secs
 group tlsph type 1 # nds
 441 atoms in group tlsph
 group mp type 2 # mps
@@ -96,6 +96,12 @@ neighbor        2.01 bin
 # set 		group all diameter ${h} # set SPH kernel radius (the name is deceiving, but pass it the radius)
 
 ####################################################################################################
+# DEFINE HOURGLASS ERROR CORRECTION
+####################################################################################################
+variable hg equal 1000
+fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
+fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps 1000
+####################################################################################################
 # DEFINE VELOCITY BOUNDARY CONDITIONS
 ####################################################################################################
 variable 	vel0 equal 0.02 # pull velocity
@@ -113,9 +119,9 @@ fix             veltop_fix top otm/setvel 0 v_vel_up 0
 fix             velbot_fix bot otm/setvel 0 v_vel_down 0
 
 # LME Evaluation
-fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing ${l0} Locality ${gamma}
-fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality ${gamma}
-fix  		Shape_fix all otm/lme/shape mat_points 2 nodes 1 Spacing 1 Locality 4
+fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom ${l0} Locality ${gamma}
+fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom 1 Locality ${gamma}
+fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom 1 Locality 4
 
 ####################################################################################################
 # INTERACTION PHYSICS / MATERIAL MODEL
@@ -132,10 +138,10 @@ variable      Lag_strain equal 0 # index for Lagragian strain measure
 variable      Inf_strain equal 1 # index for Infinitesimal strain measure
 variable      Plane_strain equal 0
 variable      Plane_stress equal 1
-pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom ${l0} strain_measure ${Lag_strain} stress_measure ${Plane_strain}
-pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom 1 strain_measure ${Lag_strain} stress_measure ${Plane_strain}
-pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom 1 strain_measure 0 stress_measure ${Plane_strain}
-pair_style  otm/elastic/linear mat_points 2 nodes 1 hNom 1 strain_measure 0 stress_measure 0
+pair_style  otm/elastic/linear MP 2 ND 1 hNom ${l0} strain ${Lag_strain} stress ${Plane_strain}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom 1 strain ${Lag_strain} stress ${Plane_strain}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom 1 strain 0 stress ${Plane_strain}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom 1 strain 0 stress 0
 pair_coeff  * * ${E} ${nu} # more efficient for user --> remove neighbour list in file
 pair_coeff  * * 70 ${nu} 
 pair_coeff  * * 70 0.3 
@@ -147,7 +153,7 @@ pair_coeff  * * 70 0.3
 
 # set dt at a constant value for now
 timestep 0.015
-fix             integration all otm/integrate mat_points 2 nodes 1
+fix             integration all otm/integrate MP 2 ND 1
 
 ####################################################################################################
 # SPECIFY TRAJECTORY OUTPUT
@@ -164,7 +170,7 @@ fix             integration all otm/integrate mat_points 2 nodes 1
 # dump 		dump_id all custom 100 dump.LAMMPS id type x y z # 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p # 			c_E[1] c_E[2] c_E[3] c_E[4] c_E[5] c_E[6] # 			c_shape[1] c_shape[2] c_shape[3] c_shape[4] c_shape[5] c_shape[6] c_shape[7] # 			c_D[1] c_D[2] c_D[4] c_damage radius c_epsdot #                         vx vy vz c_dt_atom
 # dump_modify 	dump_id first yes
 
-dump dump_id all atom 100 dump_LE.LAMMPS
+dump dump_id all atom 25 dump_LE.LAMMPS
 
 
 
@@ -186,60 +192,38 @@ dump dump_id all atom 100 dump_LE.LAMMPS
 # RUN SIMULATION
 ####################################################################################################
 #fix 2 all enforce2d
-run 14400
+run 26000
+WARNING: One or more atoms are time integrated more than once (../modify.cpp:289)
 Neighbor list info ...
   update every 10 steps, delay 0 steps, check yes
   max neighbors/atom: 2000, page size: 100000
   master list distance cutoff = 6.03
   ghost atom cutoff = 6.03
   binsize = 3.015, bins = 7 7 1
-  3 neighbor lists, perpetual/occasional/extra = 3 0 0
+  4 neighbor lists, perpetual/occasional/extra = 4 0 0
   (1) pair otm/elastic/linear, perpetual
       attributes: full, newton off
       pair build: full/bin/atomonly
       stencil: full/bin/2d
       bin: standard
-  (2) fix otm/lme/shape, perpetual, copy from (1)
+  (2) fix otm/hourglass_correction, perpetual, copy from (1)
       attributes: full, newton off
       pair build: copy
       stencil: none
       bin: none
-  (3) fix otm/integrate, perpetual, copy from (1)
+  (3) fix otm/lme/shape, perpetual, copy from (1)
       attributes: full, newton off
       pair build: copy
       stencil: none
       bin: none
-Per MPI rank memory allocation (min/avg/max) = 96.04 | 96.04 | 96.04 Mbytes
+  (4) fix otm/integrate, perpetual, copy from (1)
+      attributes: full, newton off
+      pair build: copy
+      stencil: none
+      bin: none
+Per MPI rank memory allocation (min/avg/max) = 111.2 | 111.2 | 111.2 Mbytes
 Step Temp E_pair E_mol TotEng Press Volume 
        0            0            0            0            0            0    404.09121 
-   14400 2.2452245e+21            0            0    112.83527   0.22486575    501.78949 
-Loop time of 318.344 on 1 procs for 14400 steps with 3641 atoms
-
-98.8% CPU use with 1 MPI tasks x no OpenMP threads
-
-MPI task timing breakdown:
-Section |  min time  |  avg time  |  max time  |%varavg| %total
----------------------------------------------------------------
-Pair    | 8.2557     | 8.2557     | 8.2557     |   0.0 |  2.59
-Neigh   | 0.092605   | 0.092605   | 0.092605   |   0.0 |  0.03
-Comm    | 0.016504   | 0.016504   | 0.016504   |   0.0 |  0.01
-Output  | 0.66802    | 0.66802    | 0.66802    |   0.0 |  0.21
-Modify  | 309.16     | 309.16     | 309.16     |   0.0 | 97.12
-Other   |            | 0.1503     |            |       |  0.05
-
-Nlocal:    3641 ave 3641 max 3641 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Nghost:    0 ave 0 max 0 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-Neighs:    0 ave 0 max 0 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-FullNghs:  2.53159e+06 ave 2.53159e+06 max 2.53159e+06 min
-Histogram: 1 0 0 0 0 0 0 0 0 0
-
-Total # of neighbors = 2531590
-Ave neighs/atom = 695.301
-Neighbor list builds = 4
-Dangerous builds = 0
-ce2d
-ERROR: Unknown command: ce2d (../input.cpp:232)
-Last command: ce2d
+ERROR: Maximum iterations reached without LME convergence to specified tolerance
+ (../fix_lme.cpp:531)
+Last command: run 26000

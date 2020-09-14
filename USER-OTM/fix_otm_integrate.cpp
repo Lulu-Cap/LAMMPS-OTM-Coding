@@ -67,8 +67,8 @@ TO-DO:
   [0]: FixID
   [1]: groupID - Must include both mp and node style particles
   [2]: Fix name
-  [3,4]: keyword (mat_point) and material point style number
-  [5,6]: keyword (nodes) and node style number
+  [3,4]: keyword (MP) and material point style number
+  [5,6]: keyword (ND) and node style number
 
   More arguments may be needed. We will see
 ------------------------------------------------------------------------- */
@@ -76,8 +76,8 @@ TO-DO:
 FixOTMIntegrate::FixOTMIntegrate(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg)
 {
-// fix 1 all otm/integrate_mp mat_points 1 nodes 2
-//    [0][1]        [2]          [3]    [4] [5] [6]
+// fix 1 all otm/integrate MP 1 ND 2
+//    [0][1]        [2]   [3][4][5][6]
 
 int index, ii, i, j;
 int ntypes = atom->ntypes;

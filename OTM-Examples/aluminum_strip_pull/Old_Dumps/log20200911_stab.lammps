@@ -1,0 +1,256 @@
+LAMMPS (3 Mar 2020)
+####################################################################################################
+#
+# TLSPH example:  elongate a 2d strip of aluminum py pulling its ends apart
+#
+# unit sytem: GPa / mm / ms
+#
+####################################################################################################
+
+
+####################################################################################################
+# MATERIAL PARAMETERS
+####################################################################################################
+variable 	E equal 70.0 # Young's modulus
+variable 	nu equal 0.3 # Poisson ratio
+variable 	rho equal 1 # initial mass density
+variable        q1 equal 0.56 # standard artificial viscosity linear coefficient
+variable        q2 equal 0.0  # standard artificial viscosity quadratic coefficient
+# variable        hg equal 10.0 # hourglass control coefficient
+variable        cp equal 1.0 # heat capacity of material -- not used here
+
+variable        JC_A equal 0.3241 # Johnson Cook parameters
+variable        JC_B equal 0.1138
+variable        JC_N equal 0.42
+variable        JC_C equal 0 #0.002
+variable        JC_M equal 1.34
+variable        JC_epsdot0 equal 1.0e-3 # 1/s = 1/(1000 ms)
+variable        Troom equal 298.15
+variable        Tmelt equal 500.15
+
+variable        eosC0 equal 0.0 # Polynomial EOS parameters
+variable        eosC1 equal 74.2
+variable        eosC2 equal 60.5
+variable        eosC3 equal 36.5
+variable        eosC4 equal 1.96
+variable        eosC5 equal 0.0
+variable        eosC6 equal 0.0
+
+####################################################################################################
+# INITIALIZE LAMMPS
+####################################################################################################
+units			si
+dimension       2
+boundary        sm sm p # simulation box boundaries (shrink-wrapped minimal, ditto, periodic)
+atom_style      otm
+atom_modify		map array # creates a map for finding atom ids w/an array (vs. hash table)
+newton          off
+
+#comm_modify cutoff ${Rcut} # communicates between atoms w/in cutoff radius
+comm_modify     vel yes # I don't think this actually matters for OTM...
+
+#neigh_modify exclude group nd nd  # nodes don't have neighbour lists with themselves
+#neigh_modify exclude group mp mp  # mps don't need neighbour lists with themselves
+
+neigh_modify    every 10 delay 0 check yes # re-build neighbor list every 10 steps
+
+####################################################################################################
+# READ GEOMETRY
+####################################################################################################
+read_data   aluminum_strip_pull.data # nds are type 1, mps are type 2
+  orthogonal box = (-10.1 -10.1 -0.5) to (10.1 10.1 0.5)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  1241 atoms
+  reading velocities ...
+  1241 velocities
+  read_data CPU = 0.0226691 secs
+group tlsph type 1 # nds
+441 atoms in group tlsph
+group mp type 2 # mps
+800 atoms in group mp
+
+variable	 	l0 equal 1.0 # lattice spacing for creating particles
+# lattice		 	sq ${l0} # Square lattice with above spacing
+# region 			box block -10 10 -10 10 -0.1 0.1 units box
+# create_box 		2 box # (# of atom types) (region-ID)
+# create_atoms 	1 box  # nodes are type 1
+# create_atoms	2 single 0.5 0.5 0 # mp is type 2
+# group			tlsph type 1 # nodes are tlsph for now
+# group       	mp type 2 # material point
+
+
+####################################################################################################
+# DISCRETIZATION PARAMETERS
+####################################################################################################
+variable 	h equal 2.01*${l0} # SPH smoothing kernel radius
+variable 	h equal 2.01*1 
+variable gamma equal 4.0 # dimensional kernel width parameter
+# variable 	vol_one equal ${l0}^2 # volume of one particle -- assuming unit thickness
+variable 	skin equal ${h} # Verlet list range
+variable 	skin equal 2.01 
+neighbor        ${skin} bin
+neighbor        2.01 bin
+# set 		group all volume ${vol_one}
+# set         group all smd/mass/density ${rho}
+# set 		group all diameter ${h} # set SPH kernel radius (the name is deceiving, but pass it the radius)
+
+####################################################################################################
+# DEFINE HOURGLASS ERROR CORRECTION
+####################################################################################################
+variable hg equal 2500
+fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
+fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps 2500
+####################################################################################################
+# DEFINE VELOCITY BOUNDARY CONDITIONS
+####################################################################################################
+variable 	vel0 equal 0.02 # pull velocity
+# region    box block -10 10 -10 10 -0.1 0.1 units box # probably cut out
+region 		top block EDGE EDGE 9.0 EDGE EDGE EDGE units box
+region 		bot block EDGE EDGE EDGE -9.1 EDGE EDGE units box
+group           top region top
+82 atoms in group top
+group           bot region bot
+61 atoms in group bot
+variable        vel_up equal ${vel0}*(1.0-exp(-0.01*time))
+variable        vel_up equal 0.02*(1.0-exp(-0.01*time))
+variable        vel_down equal -v_vel_up
+fix             veltop_fix top otm/setvel 0 v_vel_up 0
+fix             velbot_fix bot otm/setvel 0 v_vel_down 0
+
+# LME Evaluation
+fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom ${l0} Locality ${gamma}
+fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom 1 Locality ${gamma}
+fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom 1 Locality 4
+
+####################################################################################################
+# INTERACTION PHYSICS / MATERIAL MODEL
+# We use polynomial EOS for the pressure and the Johnson Cook strength model
+# An integration point fails (cannot support tension anymore) if the plastic strain exceeds 0.5.
+####################################################################################################
+# pair_style      hybrid/overlay smd/tlsph # 							   smd/hertz 2
+# pair_coeff      1 1 smd/tlsph *COMMON ${rho} ${E} ${nu} ${q1} ${q2} ${hg} ${cp} #    	        *EOS_POLYNOMIAL ${eosC0} ${eosC1} ${eosC2} ${eosC3} ${eosC4} ${eosC5} ${eosC6} #   		*JOHNSON_COOK ${JC_A} ${JC_B}  ${JC_N} ${JC_C} ${JC_epsdot0} ${Troom} ${Tmelt} ${JC_M} #                 *FAILURE_MAX_PLASTIC_STRAIN 1.2 #                 *END
+
+# pair_coeff 		2 2 none
+# pair_coeff 		1 2 smd/hertz 0 # If I use 'none' here it will not build the neighbour list as required
+
+variable      Lag_strain equal 0 # index for Lagragian strain measure
+variable      Inf_strain equal 1 # index for Infinitesimal strain measure
+variable      Plane_strain equal 0
+variable      Plane_stress equal 1
+variable      eps equal 100000
+pair_style  otm/elastic/linear MP 2 ND 1 hNom ${l0} strain ${Lag_strain} stress ${Plane_strain}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom 1 strain ${Lag_strain} stress ${Plane_strain}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom 1 strain 0 stress ${Plane_strain}
+pair_style  otm/elastic/linear MP 2 ND 1 hNom 1 strain 0 stress 0
+pair_coeff  * * ${E} ${nu} # more efficient for user --> remove neighbour list in file
+pair_coeff  * * 70 ${nu} 
+pair_coeff  * * 70 0.3 
+
+####################################################################################################
+# TIME INTEGRATION
+####################################################################################################
+# fix             dtfix tlsph smd/adjust_dt 0.1 # dynamically adjust time increment every step
+
+# set dt at a constant value for now
+timestep 0.015
+fix             integration all otm/integrate MP 2 ND 1
+
+####################################################################################################
+# SPECIFY TRAJECTORY OUTPUT
+####################################################################################################
+# compute     dt_atom all smd/tlsph/dt
+# compute 	p all smd/plastic/strain
+# compute 	epsdot all smd/plastic/strain/rate
+# compute 	S all smd/tlsph/stress # Cauchy stress tensor
+# compute 	D all smd/tlsph/strain/rate
+# compute 	E all smd/tlsph/strain
+# compute 	nn all smd/tlsph/num/neighs # number of neighbors for each particle
+# compute         shape all smd/tlsph/shape
+# compute 	damage all smd/damage
+# dump 		dump_id all custom 100 dump.LAMMPS id type x y z # 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p # 			c_E[1] c_E[2] c_E[3] c_E[4] c_E[5] c_E[6] # 			c_shape[1] c_shape[2] c_shape[3] c_shape[4] c_shape[5] c_shape[6] c_shape[7] # 			c_D[1] c_D[2] c_D[4] c_damage radius c_epsdot #                         vx vy vz c_dt_atom
+# dump_modify 	dump_id first yes
+
+dump dump_id all atom 50 dump_LE.LAMMPS
+
+
+
+
+
+####################################################################################################
+# STATUS OUTPUT
+####################################################################################################
+# variable stress equal 0.5*(f_velbot_fix[2]-f_veltop_fix[2])/20
+# variable length equal xcm(top,y)-xcm(bot,y)
+# variable strain equal (v_length-${length})/${length} # engineering strain
+# variable time equal f_dtfix
+# fix stress_curve all print 10 "${time} ${strain} ${stress}" file stress_strain.dat screen no
+
+# thermo 100
+# thermo_style custom step dt f_dtfix time v_strain
+
+####################################################################################################
+# RUN SIMULATION
+####################################################################################################
+#fix 2 all enforce2d
+run 20600
+WARNING: One or more atoms are time integrated more than once (../modify.cpp:289)
+Neighbor list info ...
+  update every 10 steps, delay 0 steps, check yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 6.03
+  ghost atom cutoff = 6.03
+  binsize = 3.015, bins = 7 7 1
+  4 neighbor lists, perpetual/occasional/extra = 4 0 0
+  (1) pair otm/elastic/linear, perpetual
+      attributes: full, newton off
+      pair build: full/bin/atomonly
+      stencil: full/bin/2d
+      bin: standard
+  (2) fix otm/hourglass_correction, perpetual, copy from (1)
+      attributes: full, newton off
+      pair build: copy
+      stencil: none
+      bin: none
+  (3) fix otm/lme/shape, perpetual, copy from (1)
+      attributes: full, newton off
+      pair build: copy
+      stencil: none
+      bin: none
+  (4) fix otm/integrate, perpetual, copy from (1)
+      attributes: full, newton off
+      pair build: copy
+      stencil: none
+      bin: none
+Per MPI rank memory allocation (min/avg/max) = 72.95 | 72.95 | 72.95 Mbytes
+Step Temp E_pair E_mol TotEng Press Volume 
+       0            0            0            0            0            0    404.09121 
+   20600 2.9670448e+21            0            0       50.796  0.091158423    557.22772 
+Loop time of 114.515 on 1 procs for 20600 steps with 1241 atoms
+
+99.0% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 3.0685     | 3.0685     | 3.0685     |   0.0 |  2.68
+Neigh   | 0.012138   | 0.012138   | 0.012138   |   0.0 |  0.01
+Comm    | 0.0070457  | 0.0070457  | 0.0070457  |   0.0 |  0.01
+Output  | 0.33192    | 0.33192    | 0.33192    |   0.0 |  0.29
+Modify  | 111.03     | 111.03     | 111.03     |   0.0 | 96.96
+Other   |            | 0.06066    |            |       |  0.05
+
+Nlocal:    1241 ave 1241 max 1241 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+FullNghs:  279016 ave 279016 max 279016 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 279016
+Ave neighs/atom = 224.832
+Neighbor list builds = 4
+Dangerous builds = 0
+Total wall time: 0:01:54

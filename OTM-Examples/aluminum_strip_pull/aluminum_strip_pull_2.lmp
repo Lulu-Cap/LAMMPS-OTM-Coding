@@ -38,11 +38,11 @@ variable        eosC6 equal 0.0
 ####################################################################################################
 # INITIALIZE LAMMPS
 ####################################################################################################
-units			si
+units			      si
 dimension       2
 boundary        sm sm p # simulation box boundaries (shrink-wrapped minimal, ditto, periodic)
 atom_style      otm 
-atom_modify		map array # creates a map for finding atom ids w/an array (vs. hash table)
+atom_modify		  map array # creates a map for finding atom ids w/an array (vs. hash table)
 newton          off
 
 #comm_modify cutoff ${Rcut} # communicates between atoms w/in cutoff radius
@@ -56,9 +56,9 @@ neigh_modify    every 10 delay 0 check yes # re-build neighbor list every 10 ste
 ####################################################################################################
 # READ GEOMETRY
 ####################################################################################################
-read_data   aluminum_strip_pull.data # nds are type 1, mps are type 2
-group tlsph type 1 # nds
-group mp type 2 # mps
+read_data   aluminum_strip_pull_moreMPs.data # nds are type 1, mps are type 2
+group       tlsph type 1 # nds
+group       mp type 2 # mps
 
 variable	 	l0 equal 1.0 # lattice spacing for creating particles
 # lattice		 	sq ${l0} # Square lattice with above spacing
@@ -73,11 +73,11 @@ variable	 	l0 equal 1.0 # lattice spacing for creating particles
 ####################################################################################################
 # DISCRETIZATION PARAMETERS
 ####################################################################################################
-variable 	h equal 2.01*${l0} # SPH smoothing kernel radius
-variable gamma equal 1.8 # dimensional kernel width parameter
+variable 	  h equal 2.01*${l0} # SPH smoothing kernel radius
+variable    gamma equal 1.8 # dimensional kernel width parameter
 # variable 	vol_one equal ${l0}^2 # volume of one particle -- assuming unit thickness
-variable 	skin equal ${h} # Verlet list range
-neighbor        ${skin} bin
+variable 	  skin equal ${h} # Verlet list range
+neighbor    ${skin} bin
 # set 		group all volume ${vol_one}
 # set         group all smd/mass/density ${rho}
 # set 		group all diameter ${h} # set SPH kernel radius (the name is deceiving, but pass it the radius)
@@ -85,19 +85,19 @@ neighbor        ${skin} bin
 ####################################################################################################
 # DEFINE VELOCITY BOUNDARY CONDITIONS
 ####################################################################################################
-variable 	vel0 equal 0.02 # pull velocity
+variable 	  vel0 equal 0.02 # pull velocity
 # region    box block -10 10 -10 10 -0.1 0.1 units box # probably cut out
-region 		top block EDGE EDGE 9.0 EDGE EDGE EDGE units box
-region 		bot block EDGE EDGE EDGE -9.1 EDGE EDGE units box
-group           top region top
-group           bot region bot
-variable        vel_up equal ${vel0}*(1.0-exp(-0.01*time))
-variable        vel_down equal -v_vel_up
-fix             veltop_fix top otm/setvel 0 v_vel_up 0
-fix             velbot_fix bot otm/setvel 0 v_vel_down 0
+region 		  top block EDGE EDGE 9.0 EDGE EDGE EDGE units box
+region 		  bot block EDGE EDGE EDGE -9.1 EDGE EDGE units box
+group       top region top
+group       bot region bot
+variable    vel_up equal ${vel0}*(1.0-exp(-0.01*time))
+variable    vel_down equal -v_vel_up
+fix         veltop_fix top otm/setvel 0 v_vel_up 0
+fix         velbot_fix bot otm/setvel 0 v_vel_down 0
 
 # LME Evaluation 
-fix  		Shape_fix all otm/lme/shape MP 2 ND 1 hNom ${l0} Locality ${gamma}
+fix  	    	Shape_fix all otm/lme/shape MP 2 ND 1 hNom ${l0} Locality ${gamma}
 
 ####################################################################################################
 # INTERACTION PHYSICS / MATERIAL MODEL
@@ -119,9 +119,9 @@ variable      Lag_strain equal 0 # index for Lagragian strain measure
 variable      Inf_strain equal 1 # index for Infinitesimal strain measure
 variable      Plane_strain equal 0 
 variable      Plane_stress equal 1
-variable      eps equal 1000
-pair_style  otm/elastic/linear MP 2 ND 1 hNom ${l0} strain ${Lag_strain} stress ${Plane_strain} eps ${eps}
-pair_coeff  * * ${E} ${nu} # more efficient for user --> remove neighbour list in file
+variable      eps equal 2500
+pair_style    otm/elastic/linear MP 2 ND 1 hNom ${l0} strain ${Lag_strain} stress ${Plane_strain} eps ${eps}
+pair_coeff    * * ${E} ${nu} # more efficient for user --> remove neighbour list in file
 
 ####################################################################################################
 # TIME INTEGRATION

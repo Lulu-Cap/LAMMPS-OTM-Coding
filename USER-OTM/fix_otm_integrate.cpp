@@ -67,8 +67,8 @@ TO-DO:
   [0]: FixID
   [1]: groupID - Must include both mp and node style particles
   [2]: Fix name
-  [3,4]: keyword (mat_point) and material point style number
-  [5,6]: keyword (nodes) and node style number
+  [3,4]: keyword (MP) and material point style number
+  [5,6]: keyword (ND) and node style number
 
   More arguments may be needed. We will see
 ------------------------------------------------------------------------- */
@@ -76,8 +76,8 @@ TO-DO:
 FixOTMIntegrate::FixOTMIntegrate(LAMMPS *lmp, int narg, char **arg) :
   Fix(lmp, narg, arg)
 {
-// fix 1 all otm/integrate_mp mat_points 1 nodes 2
-//    [0][1]        [2]          [3]    [4] [5] [6]
+// fix 1 all otm/integrate MP 1 ND 2
+//    [0][1]        [2]   [3][4][5][6]
 
 int index, ii, i, j;
 int ntypes = atom->ntypes;
@@ -119,6 +119,7 @@ for (index = 3; index < narg; index +=2) {
   grow_arrays(atom->nmax);
 
   double **F = atom->def_grad;
+  double **Fincr = atom->def_incr;
   double **Fdot = atom->def_rate;
 
   int dim = domain->dimension;
@@ -128,8 +129,15 @@ for (index = 3; index < narg; index +=2) {
       for (j = 0; j < dim; j++) {
         Fdot[ii][dim*i+j] = 0.0;
         F[ii][dim*i+j] = 0.0;
-        if (dim == 2) F[ii][0] = F[ii][3] = 1.0;
-        else if (dim == 3) F[ii][0] = F[ii][4] = F[ii][8] = 1.0;
+        Fincr[ii][dim*i+j] = 0.0;
+        if (dim == 2) {
+          F[ii][0] = F[ii][3] = 1.0;
+          Fincr[ii][0] = Fincr[ii][3] = 1.0;
+        }
+        else if (dim == 3) {
+          F[ii][0] = F[ii][4] = F[ii][8] = 1.0;
+          Fincr[ii][0] = Fincr[ii][4] = Fincr[ii][8] = 1.0;
+        }
         else error->all(FLERR,"Dimension must be set to 2 or 4. Unrecognized dimension");       
       }
     }
@@ -205,14 +213,15 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
 
   int dim = domain->dimension;
   double dt = update->dt;
-  double Fincr[3][3], Fold[3][3], Fnew[3][3];
-  double dtfm, x0[3];
+  double Fincr_temp[3][3], Fold[3][3], Fnew[3][3]; 
+  double dtfm;
 
+  double **x0 = atom->x0;
   double **x = atom->x;
   double **v = atom->v;
-  // double **vest = atom->vest; // DEBUG: temporarily present while using SPH physics
   double **f = atom->f;
   double **F = atom->def_grad;
+  double **Fincr = atom->def_incr;
   double **Fdot = atom->def_rate;
   double *volume = atom->vfrac;
   double *m = atom->rmass;
@@ -242,6 +251,10 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
       if (dim == 2) v[i][2] = 0.0;
 
       // Position update (full timestep)
+      x0[i][0] = x[i][0];
+      x0[i][1] = x[i][1];
+      x0[i][2] = x[i][2];
+
       x[i][0] += dtv * v[i][0];
       x[i][1] += dtv * v[i][1];
       x[i][2] += dtv * v[i][2];
@@ -260,9 +273,9 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
       
       // zero sums
       for (d1 = 0; d1 < dim; d1++) {
-        x0[d1] = x[i][d1];
+        x0[i][d1] = x[i][d1];
         x[i][d1] = 0.0;
-        for (d2 = 0; d2 < dim; d2++) Fincr[d1][d2] = 0.0;
+        for (d2 = 0; d2 < dim; d2++) Fincr_temp[d1][d2] = 0.0;
       }
 
       for (jj = 0; jj < jnum; jj++) {
@@ -273,62 +286,30 @@ void FixOTMIntegrate::initial_integrate(int /*vflag*/)
         for (d1 = 0; d1 < dim; d1++) {
           x[i][d1] += p[i][jj]*x[j][d1]; // position update
           for (d2 = 0; d2 < dim; d2++){
-            Fincr[d1][d2] += x[j][d1]*gradp[i][dim*jj+d2]; // incr. def. grad.
+            Fincr_temp[d1][d2] += x[j][d1]*gradp[i][dim*jj+d2]; // incr. def. grad.
           }
         }
       }
       
       // update properties (F, Fdot, volume, velocity)
-      double detFincr = determinant(Fincr,dim);
+      double detFincr = determinant(Fincr_temp,dim);
       volume[i] *= detFincr;
 
       vec_to_matrix(F[i],Fold,dim);
-      matrix_mult(Fincr,Fold,Fnew,dim);
+      matrix_mult(Fincr_temp,Fold,Fnew,dim);
       matrix_to_vec(F[i],Fnew,dim);
 
       for (d1 = 0; d1 < dim; d1++) {
-        v[i][d1] = (x[i][d1] - x0[d1])/dt; // Backwards 1st order velocity
+        v[i][d1] = (x[i][d1] - x0[i][d1])/dt; // Backwards 1st order velocity
         for (d2 = 0; d2 < dim; d2++) {
-          Fdot[i][d1*dim+d2] = (Fnew[d1][d2] - Fold[d1][d2])/dt;
+          Fincr[i][dim*d1+d2] = Fincr_temp[d1][d2];
+          Fdot[i][dim*d1+d2] = (Fnew[d1][d2] - Fold[d1][d2])/dt;
         }
       }
-
-      
 
     }
   }
   
-  //DEBUG
-      // if (dim==2) {
-      // printf("________________________\n"
-      //        "Timestep = %lli\tMP = %i\n",update->ntimestep,16);
-      // printf("x = (%e %e %e)\n",x[16][0],x[16][1],x[16][2]);
-      // printf("v = (%e %e %e)\n",v[16][0],v[16][1],v[16][2]);
-      // printf("Volume = %e\nMass = %e\n",atom->vfrac[16],atom->rmass[16]);
-      // printf("Fincr = |%e %e|\n"
-      //        "        |%e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[1][0],Fincr[1][1]);
-      // printf("F = |%e %e|\n"
-      //        "    |%e %e|\n",F[16][0],F[16][1],F[16][2],F[16][3]);
-      // printf("Fdot = |%e %e|\n"
-      //        "       |%e %e|\n\n",Fdot[16][0],Fdot[16][1],Fdot[16][2],Fdot[16][3]);
-      // }
-      // else if (dim==3) {
-      // printf("________________________\n"
-      //        "Timestep = %lli\tMP = %i\n",update->ntimestep,i);
-      // printf("x = (%e %e %e)\n",x[16][0],x[16][1],x[16][2]);
-      // printf("v = (%e %e %e)\n",v[16][0],v[16][1],v[16][2]);
-      // printf("Volume = %e\nMass = %e\n",atom->vfrac[16],atom->rmass[16]);
-      // printf("Fincr = |%e %e %e|\n"
-      //        "        |%e %e %e|\n"
-      //        "        |%e %e %e|\n",Fincr[0][0],Fincr[0][1],Fincr[0][2],Fincr[1][0],Fincr[1][1],Fincr[1][2],Fincr[2][0],Fincr[2][1],Fincr[2][2]);
-      // printf("F = |%e %e %e|\n"
-      //        "    |%e %e %e|\n"
-      //        "    |%e %e %e|\n",F[16][0],F[16][1],F[16][2],F[16][3],F[16][4],F[16][5],F[16][6],F[16][7],F[16][8]);
-      // printf("Fdot = |%e %e %e|\n"
-      //        "       |%e %e %e|\n"
-      //        "       |%e %e %e|\n\n",Fdot[16][0],Fdot[16][1],Fdot[16][2],Fdot[16][3],Fdot[16][4],Fdot[16][5],Fdot[16][6],Fdot[16][7],Fdot[16][8]);
-      // }
-
   return;  
 }
 
@@ -380,8 +361,9 @@ void FixOTMIntegrate::final_integrate(void)
 void FixOTMIntegrate::grow_arrays(int nmax) 
 {
   int dim = domain->dimension;
-  memory->grow(atom->def_grad, nmax, dim*dim, "otm_mp_update:F"); // Final arg is just for an error message
-  memory->grow(atom->def_rate, nmax, dim*dim, "otm_mp_update:Fdot");
+  memory->grow(atom->def_grad, nmax, dim*dim, "otm_integrate:F");
+  memory->grow(atom->def_incr, nmax, dim*dim, "otm_integrate:Fincr");
+  memory->grow(atom->def_rate, nmax, dim*dim, "otm_integrate:Fdot");
   return;
 }
 

@@ -42,7 +42,8 @@ using namespace LAMMPS_NS;
 
 
 // TO-DO:
-// 1. Dynamic memory allocation
+// 1. Ragged shape function matrices (unrealistic. I think it complicates the functions stored in memory.h. 
+//    Probably better to just leave it for now)
 // 2. Add **F, **Fdot, **gradp, *partner, and *npartner to everything **COMPLETE**
 // 3. Pack comm and pack_comm_vel. We do not need pack comm vel for OTM, but need to adjust 
 //    pack_comm() to pass F and Fdot.
@@ -87,6 +88,7 @@ AtomVecOTM::AtomVecOTM(LAMMPS *lmp) :
   atom->npartner_flag = 1;
   atom->partner_flag = 1;
   atom->def_grad_flag = 1;
+  atom->def_incr_flag = 1;
   atom->def_rate_flag = 1;
 }
 
@@ -146,6 +148,7 @@ void AtomVecOTM::grow(int n) {
   npartner = memory->grow(atom->npartner, nmax, "atom:npartner");
   partner = memory->grow(atom->partner, nmax, NEIGH_MAX, "atom:partner");
   def_grad = memory->grow(atom->def_grad, nmax, dim*dim, "atom:def_grad");
+  def_incr = memory->grow(atom->def_incr, nmax, dim*dim, "atom:def_incr");
   def_rate = memory->grow(atom->def_rate, nmax, dim*dim, "atom:def_rate");
 
   if (atom->nextra_grow)
@@ -187,6 +190,7 @@ void AtomVecOTM::grow_reset() {
   npartner = atom->npartner;
   partner = atom->partner;
   def_grad = atom->def_grad;
+  def_incr = atom->def_incr;
   def_rate = atom->def_rate;
 }
 
@@ -243,8 +247,9 @@ void AtomVecOTM::copy(int i, int j, int delflag) {
 
   for (int ii = 0; ii < dim; ii++) {
     for (int jj = 0; jj < dim; jj++) {
-      def_grad[j][ii*dim+jj] = def_grad[i][ii*dim+jj];
-      def_rate[j][ii*dim+jj] = def_rate[i][ii*dim+jj];
+      def_grad[j][dim*ii+jj] = def_grad[i][dim*ii+jj];
+      def_incr[j][dim*ii+jj] = def_incr[i][dim*ii+jj];
+      def_rate[j][dim*ii+jj] = def_rate[i][dim*ii+jj];
     }
   }
   
@@ -261,7 +266,7 @@ int AtomVecOTM::pack_comm(int /*n*/, int * /*list*/, double * /*buf*/, int /*pbc
 }
 
 /* ---------------------------------------------------------------------- */
-
+//DEBUG
 int AtomVecOTM::pack_comm_vel(int n, int *list, double *buf, int pbc_flag, int *pbc) {
   // communicate quantities to ghosts, which are changed by time-integration AND are required on ghost atoms.
 
@@ -822,9 +827,10 @@ int AtomVecOTM::pack_exchange(int i, double *buf) {
   for (int ii = 0; ii < dim; ii++) {
     for (int jj = 0; jj < dim; jj++) {
       buf[m++] = def_grad[i][dim*ii+jj];
+      buf[m++] = def_incr[i][dim*ii+jj];
       buf[m++] = def_rate[i][dim*ii+jj];
     }
-  } // 40 + (2+dim)*NEIGH_MAX + 2*dim*dim
+  } // 40 + (2+dim)*NEIGH_MAX + 3*dim*dim
 
   if (atom->nextra_grow)
     for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -893,9 +899,10 @@ int AtomVecOTM::unpack_exchange(double *buf) {
   for (int ii = 0; ii < dim; ii++) {
     for (int jj = 0; jj < dim; jj++) {
       def_grad[nlocal][dim*ii+jj] = buf[m++];
+      def_incr[nlocal][dim*ii+jj] = buf[m++];
       def_rate[nlocal][dim*ii+jj] = buf[m++];
     }
-  } // 41 + (2+dim)*NEIGH_MAX + 2*dim*dim
+  } // 41 + (2+dim)*NEIGH_MAX + 3*dim*dim
 
   if (atom->nextra_grow)
     for (int iextra = 0; iextra < atom->nextra_grow; iextra++)
@@ -981,9 +988,10 @@ int AtomVecOTM::pack_restart(int i, double *buf) {
   for (int ii = 0; ii < dim; ii++) {
     for (int jj = 0; jj < dim; jj++) {
       buf[m++] = def_grad[i][dim*ii+jj];
+      buf[m++] = def_incr[i][dim*ii+jj];
       buf[m++] = def_rate[i][dim*ii+jj];
     }
-  } // 42 + (2+dim)*NEIGH_MAX + 2*dim*dim
+  } // 42 + (2+dim)*NEIGH_MAX + 3*dim*dim
 
   if (atom->nextra_restart)
     for (int iextra = 0; iextra < atom->nextra_restart; iextra++)
@@ -1057,9 +1065,10 @@ int AtomVecOTM::unpack_restart(double *buf) {
   for (int ii = 0; ii < dim; ii++) {
     for (int jj = 0; jj < dim; jj++) {
       def_grad[nlocal][dim*ii+jj] = buf[m++];
+      def_incr[nlocal][dim*ii+jj] = buf[m++];
       def_rate[nlocal][dim*ii+jj] = buf[m++];
     }
-  } // 42 + (2+dim)*NEIGH_MAX + 2*dim*dim
+  } // 42 + (2+dim)*NEIGH_MAX + 3*dim*dim
 
   //printf("nlocal in restart is %d\n", nlocal);
 
@@ -1083,76 +1092,76 @@ int AtomVecOTM::unpack_restart(double *buf) {
  ------------------------------------------------------------------------- */
 
 void AtomVecOTM::create_atom(int itype, double *coord) {
-        int nlocal = atom->nlocal;
-        if (nlocal == nmax) {
-                printf("nlocal = %d, nmax = %d, calling grow\n", nlocal, nmax);
-                grow(0);
-                printf("... finished growing\n");
-        }
+  int nlocal = atom->nlocal;
+  if (nlocal == nmax) {
+    printf("nlocal = %d, nmax = %d, calling grow\n", nlocal, nmax);
+    grow(0);
+    printf("... finished growing\n");
+  }
 
-        tag[nlocal] = 0;
-        type[nlocal] = itype;
-        x[nlocal][0] = coord[0];
-        x[nlocal][1] = coord[1];
-        x[nlocal][2] = coord[2];
-        x0[nlocal][0] = coord[0];
-        x0[nlocal][1] = coord[1];
-        x0[nlocal][2] = coord[2];
-        mask[nlocal] = 1;
-        image[nlocal] = ((imageint) IMGMAX << IMG2BITS) | ((imageint) IMGMAX << IMGBITS) | IMGMAX;
-        v[nlocal][0] = 0.0;
-        v[nlocal][1] = 0.0;
-        v[nlocal][2] = 0.0;
-        vest[nlocal][0] = 0.0;
-        vest[nlocal][1] = 0.0;
-        vest[nlocal][2] = 0.0;
+  tag[nlocal] = 0;
+  type[nlocal] = itype;
+  x[nlocal][0] = coord[0];
+  x[nlocal][1] = coord[1];
+  x[nlocal][2] = coord[2];
+  x0[nlocal][0] = coord[0];
+  x0[nlocal][1] = coord[1];
+  x0[nlocal][2] = coord[2];
+  mask[nlocal] = 1;
+  image[nlocal] = ((imageint) IMGMAX << IMG2BITS) | ((imageint) IMGMAX << IMGBITS) | IMGMAX;
+  v[nlocal][0] = 0.0;
+  v[nlocal][1] = 0.0;
+  v[nlocal][2] = 0.0;
+  vest[nlocal][0] = 0.0;
+  vest[nlocal][1] = 0.0;
+  vest[nlocal][2] = 0.0;
 
-        vfrac[nlocal] = 1.0;
-        rmass[nlocal] = 1.0;
-        radius[nlocal] = 0.5;
-        contact_radius[nlocal] = 0.5;
-        molecule[nlocal] = 1;
-        e[nlocal] = 0.0;
-        eff_plastic_strain[nlocal] = 0.0;
-        eff_plastic_strain_rate[nlocal] = 0.0;
+  vfrac[nlocal] = 1.0;
+  rmass[nlocal] = 1.0;
+  radius[nlocal] = 0.5;
+  contact_radius[nlocal] = 0.5;
+  molecule[nlocal] = 1;
+  e[nlocal] = 0.0;
+  eff_plastic_strain[nlocal] = 0.0;
+  eff_plastic_strain_rate[nlocal] = 0.0;
 
-        for (int k = 0; k < NMAT_FULL; k++) {
-                smd_data_9[nlocal][k] = 0.0;
-        }
-        smd_data_9[nlocal][0] = 1.0; // xx
-        smd_data_9[nlocal][4] = 1.0; // yy
-        smd_data_9[nlocal][8] = 1.0; // zz
+  for (int k = 0; k < NMAT_FULL; k++) {
+    smd_data_9[nlocal][k] = 0.0;
+  }
+  smd_data_9[nlocal][0] = 1.0; // xx
+  smd_data_9[nlocal][4] = 1.0; // yy
+  smd_data_9[nlocal][8] = 1.0; // zz
 
-        for (int k = 0; k < NMAT_SYMM; k++) {
-                tlsph_stress[nlocal][k] = 0.0;
-        }
+  for (int k = 0; k < NMAT_SYMM; k++) {
+    tlsph_stress[nlocal][k] = 0.0;
+  }
 
-        damage[nlocal] = 0.0;
+  damage[nlocal] = 0.0;
 
-        // USER-OTM
-        int dim = domain->dimension;
-        npartner[nlocal] = 0;
-        for (int k = 0; k < NEIGH_MAX; k++) {
-                partner[nlocal][k] = 0;
-                p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
-                for (int d = 0; d < dim; d++) 
-                        gradp[nlocal][dim*k+d] = 0.0;
-        }
-        for (int ii = 0; ii < dim; ii++) {
-                def_grad[nlocal][ii] = 0.0;
-                def_rate[nlocal][ii] = 0.0;
-        }
-        if (dim == 2) {
-                def_grad[nlocal][0] = 1.0;
-                def_grad[nlocal][3] = 1.0;
-        }
-        else if (dim == 3) {
-                def_grad[nlocal][0] = 1.0;
-                def_grad[nlocal][4] = 1.0;
-                def_grad[nlocal][8] = 1.0;
-        }
+  // USER-OTM
+  int dim = domain->dimension;
+  npartner[nlocal] = 0;
+  for (int k = 0; k < NEIGH_MAX; k++) {
+    partner[nlocal][k] = 0;
+    p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
+    for (int d = 0; d < dim; d++) 
+      gradp[nlocal][dim*k+d] = 0.0;
+  }
+  for (int ii = 0; ii < dim; ii++) {
+    def_grad[nlocal][ii] = 0.0;
+    def_incr[nlocal][ii] = 0.0;
+    def_rate[nlocal][ii] = 0.0;
+  }
+  if (dim == 2) {
+    def_grad[nlocal][0] = def_grad[nlocal][3] = 1.0;
+    def_incr[nlocal][0] = def_incr[nlocal][3] = 1.0;
+  }
+  else if (dim == 3) {
+    def_grad[nlocal][0] = def_grad[nlocal][4] = def_grad[nlocal][8] = 1.0;
+    def_incr[nlocal][0] = def_incr[nlocal][4] = def_incr[nlocal][8] = 1.0;
+  }
 
-        atom->nlocal++;
+  atom->nlocal++;
 }
 
 /* ----------------------------------------------------------------------
@@ -1161,97 +1170,97 @@ void AtomVecOTM::create_atom(int itype, double *coord) {
  ------------------------------------------------------------------------- */
 
 void AtomVecOTM::data_atom(double *coord, imageint imagetmp, char **values) {
-        int nlocal = atom->nlocal;
-        if (nlocal == nmax)
-                grow(0);
+  int nlocal = atom->nlocal;
+  if (nlocal == nmax)
+    grow(0);
 
-        tag[nlocal] = utils::tnumeric(FLERR,values[0],true,lmp);
+  tag[nlocal] = utils::tnumeric(FLERR,values[0],true,lmp);
 
-        type[nlocal] = utils::inumeric(FLERR,values[1],true,lmp);
-        if (type[nlocal] <= 0 || type[nlocal] > atom->ntypes)
-                error->one(FLERR, "Invalid atom type in Atoms section of data file");
+  type[nlocal] = utils::inumeric(FLERR,values[1],true,lmp);
+  if (type[nlocal] <= 0 || type[nlocal] > atom->ntypes)
+    error->one(FLERR, "Invalid atom type in Atoms section of data file");
 
-        molecule[nlocal] = utils::tnumeric(FLERR,values[2],true,lmp);
-        if (molecule[nlocal] <= 0)
-                error->one(FLERR, "Invalid molecule in Atoms section of data file");
+  molecule[nlocal] = utils::tnumeric(FLERR,values[2],true,lmp);
+  if (molecule[nlocal] <= 0)
+    error->one(FLERR, "Invalid molecule in Atoms section of data file");
 
-        vfrac[nlocal] = utils::numeric(FLERR,values[3],true,lmp);
-        if (vfrac[nlocal] < 0.0)
-                error->one(FLERR, "Invalid volume in Atoms section of data file");
+  vfrac[nlocal] = utils::numeric(FLERR,values[3],true,lmp);
+  if (vfrac[nlocal] < 0.0)
+    error->one(FLERR, "Invalid volume in Atoms section of data file");
 
-        rmass[nlocal] = utils::numeric(FLERR,values[4],true,lmp);
-        if (rmass[nlocal] == 0.0)
-                error->one(FLERR, "Invalid mass in Atoms section of data file");
+  rmass[nlocal] = utils::numeric(FLERR,values[4],true,lmp);
+  if (rmass[nlocal] == 0.0)
+    error->one(FLERR, "Invalid mass in Atoms section of data file");
 
-        radius[nlocal] = utils::numeric(FLERR,values[5],true,lmp);
-        if (radius[nlocal] < 0.0)
-                error->one(FLERR, "Invalid radius in Atoms section of data file");
+  radius[nlocal] = utils::numeric(FLERR,values[5],true,lmp);
+  if (radius[nlocal] < 0.0)
+    error->one(FLERR, "Invalid radius in Atoms section of data file");
 
-        contact_radius[nlocal] = utils::numeric(FLERR,values[6],true,lmp);
-        if (contact_radius[nlocal] < 0.0)
-                error->one(FLERR, "Invalid contact radius in Atoms section of data file");
+  contact_radius[nlocal] = utils::numeric(FLERR,values[6],true,lmp);
+  if (contact_radius[nlocal] < 0.0)
+    error->one(FLERR, "Invalid contact radius in Atoms section of data file");
 
-        e[nlocal] = 0.0;
+  e[nlocal] = 0.0;
 
-        x0[nlocal][0] = utils::numeric(FLERR,values[7],true,lmp);
-        x0[nlocal][1] = utils::numeric(FLERR,values[8],true,lmp);
-        x0[nlocal][2] = utils::numeric(FLERR,values[9],true,lmp);
+  x0[nlocal][0] = utils::numeric(FLERR,values[7],true,lmp);
+  x0[nlocal][1] = utils::numeric(FLERR,values[8],true,lmp);
+  x0[nlocal][2] = utils::numeric(FLERR,values[9],true,lmp);
 
-        x[nlocal][0] = coord[0];
-        x[nlocal][1] = coord[1];
-        x[nlocal][2] = coord[2];
+  x[nlocal][0] = coord[0];
+  x[nlocal][1] = coord[1];
+  x[nlocal][2] = coord[2];
 
-        image[nlocal] = imagetmp;
+  image[nlocal] = imagetmp;
 
-        mask[nlocal] = 1;
-        v[nlocal][0] = 0.0;
-        v[nlocal][1] = 0.0;
-        v[nlocal][2] = 0.0;
-        vest[nlocal][0] = 0.0;
-        vest[nlocal][1] = 0.0;
-        vest[nlocal][2] = 0.0;
+  mask[nlocal] = 1;
+  v[nlocal][0] = 0.0;
+  v[nlocal][1] = 0.0;
+  v[nlocal][2] = 0.0;
+  vest[nlocal][0] = 0.0;
+  vest[nlocal][1] = 0.0;
+  vest[nlocal][2] = 0.0;
 
-        damage[nlocal] = 0.0;
+  damage[nlocal] = 0.0;
 
-        eff_plastic_strain[nlocal] = 0.0;
-        eff_plastic_strain_rate[nlocal] = 0.0;
+  eff_plastic_strain[nlocal] = 0.0;
+  eff_plastic_strain_rate[nlocal] = 0.0;
 
-        for (int k = 0; k < NMAT_FULL; k++) {
-                smd_data_9[nlocal][k] = 0.0;
-        }
+  for (int k = 0; k < NMAT_FULL; k++) {
+    smd_data_9[nlocal][k] = 0.0;
+  }
 
-        for (int k = 0; k < NMAT_SYMM; k++) {
-                tlsph_stress[nlocal][k] = 0.0;
-        }
+  for (int k = 0; k < NMAT_SYMM; k++) {
+    tlsph_stress[nlocal][k] = 0.0;
+  }
 
-        smd_data_9[nlocal][0] = 1.0; // xx
-        smd_data_9[nlocal][4] = 1.0; // yy
-        smd_data_9[nlocal][8] = 1.0; // zz
+  smd_data_9[nlocal][0] = 1.0; // xx
+  smd_data_9[nlocal][4] = 1.0; // yy
+  smd_data_9[nlocal][8] = 1.0; // zz
 
-        // USER-OTM
-        int dim = domain->dimension;
-        npartner[nlocal] = 0;
-        for (int k = 0; k < NEIGH_MAX; k++) {
-                partner[nlocal][k] = 0;
-                p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
-                for (int d = 0; d < dim; d++)
-                        gradp[nlocal][dim*k+d] = 0.0;
-        }
-        for (int ii = 0; ii < dim; ii++) {
-                def_grad[nlocal][ii] = 0.0;
-                def_rate[nlocal][ii] = 0.0;
-        }
-        if (dim == 2) {
-                def_grad[nlocal][0] = 1.0;
-                def_grad[nlocal][3] = 1.0;
-        }
-        else if (dim == 3) {
-                def_grad[nlocal][0] = 1.0;
-                def_grad[nlocal][4] = 1.0;
-                def_grad[nlocal][8] = 1.0;
-        }
-        
-        atom->nlocal++;
+  // USER-OTM
+  int dim = domain->dimension;
+  npartner[nlocal] = 0;
+  for (int k = 0; k < NEIGH_MAX; k++) {
+    partner[nlocal][k] = 0;
+    p[nlocal][k] = 0.0; // Initialize shape function evaluations to zero
+    for (int d = 0; d < dim; d++)
+      gradp[nlocal][dim*k+d] = 0.0;
+  }
+  for (int ii = 0; ii < dim; ii++) {
+    def_grad[nlocal][ii] = 0.0;
+    def_incr[nlocal][ii] = 0.0;
+    def_rate[nlocal][ii] = 0.0;
+  }
+  if (dim == 2) {
+    def_grad[nlocal][0] = def_grad[nlocal][3] = 1.0;
+    def_incr[nlocal][0] = def_incr[nlocal][3] = 1.0;
+  }
+  else if (dim == 3) {
+    def_grad[nlocal][0] = def_grad[nlocal][4] = def_grad[nlocal][8] = 1.0;
+    def_incr[nlocal][0] = def_incr[nlocal][4] = def_incr[nlocal][8] = 1.0;
+  }
+  
+  atom->nlocal++;
 }
 
 /* ----------------------------------------------------------------------
@@ -1451,6 +1460,8 @@ bigint AtomVecOTM::memory_usage() {
     bytes += memory->usage(gradp, nmax, dim*NEIGH_MAX);
   if (atom->memcheck("def_grad"))
     bytes += memory->usage(def_grad, nmax, dim*dim);
+  if (atom->memcheck("def_incr"))
+    bytes += memory->usage(def_incr, nmax, dim*dim);
   if (atom->memcheck("def_rate"))
     bytes += memory->usage(def_rate, nmax, dim*dim);
 

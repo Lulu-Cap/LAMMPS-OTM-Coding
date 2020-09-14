@@ -101,6 +101,7 @@ class AtomVecOTM : public AtomVec {
    double **gradp; // Shape function derivatives
 
    double **def_grad; // Deformation Gradient tensor, F
+   double **def_incr; // Incremental Def. Grad. tensor, Fincr
    double **def_rate; // Deformation rate tensor, Fdot
 
 };

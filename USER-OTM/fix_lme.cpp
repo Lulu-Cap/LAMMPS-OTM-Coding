@@ -236,7 +236,8 @@ void FixLME::setup(int vflag)
 
 /* ----------------------------------------------------------------------
   Compute shape functions and shape function gradients before any forces
-  are computed
+  are computed.
+  Also compute nodal masses (projections of mp masses via shape functions)
 ------------------------------------------------------------------------- */
 
 void FixLME::pre_force(int vflag)
@@ -254,15 +255,14 @@ void FixLME::pre_force(int vflag)
   double **gradp = atom->gradp;
 
   double **x = atom->x;
-  double *radius = atom->radius; // Do I need this?
+  double *m = atom->rmass;
   int *mask = atom->mask; 
   int *type = atom->type;
-  tagint *tag = atom->tag; // wtf?
-  //NeighList *list = pair->list; //
-  inum = list->inum; // # of atoms neighbours are stored for
-  ilist = list->ilist; // local indices of I atoms
-  numneigh = list->numneigh; // # of J neighbours for each I atom
-  firstneigh = list->firstneigh; // ptr to 1st J int value of each I atom
+  tagint *tag = atom->tag; 
+  inum = list->inum;
+  ilist = list->ilist; 
+  numneigh = list->numneigh; 
+  firstneigh = list->firstneigh; 
 
   // Cutoff Radius
   double beta = gamma / (h*h); 
@@ -277,7 +277,7 @@ void FixLME::pre_force(int vflag)
   for (i = 0; i < nlocal; i++)
     npartner[i] = 0;
 
-  // Find the max # of partners --> very important to do before allocating memory!
+  // Find the max # of partners before allocating memory
   maxpartner = NEIGH_MIN;
   for (ii = 0; ii < nlocal; ii++) {
     int count = 0;
@@ -333,7 +333,8 @@ void FixLME::pre_force(int vflag)
           else if (itype == typeND) { //node
             if (rsq < hMin*hMin && rsq > 0.0) 
               hMin = pow(rsq,0.5); // assign hMin
-            if (jj == 1) {
+            if (jj == 0) {
+              m[i] = 0.0;
               npartner[i] = -1;
               partner[i] = NULL;
             }
@@ -539,9 +540,11 @@ void FixLME::pre_force(int vflag)
 
       } while (norm_sq > LMDA_TOL_SQ); // Convergence while loop
       
-      // Spatial Gradient of shape functions
+      // Spatial Gradient of shape functions & nodal masses (lumped sum)
       for (jj = 0; jj < jnum; jj++) {
         j = jlist[jj];
+
+        // Spatial gradient
         double dx[3] = { (x[i][0]-x[j][0]),
                          (x[i][1]-x[j][1]),
                          (x[i][2]-x[j][2]) };
@@ -554,6 +557,9 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj+1] = -p[i][jj]/(h*h) * ( invH[1][0]*dx[0] + invH[1][1]*dx[1] + invH[1][2]*dx[2] );
           gradp[i][dim*jj+2] = -p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
+
+        // Lumped nodal masses
+        m[j] += m[i]*p[i][jj];
       }
     } // mp test
   } // mp loop

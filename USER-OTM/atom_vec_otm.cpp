@@ -37,7 +37,6 @@ using namespace LAMMPS_NS;
 
 #define NMAT_FULL 9
 #define NMAT_SYMM 6
-
 #define NEIGH_MAX 100 // Temporary until I can make this smoother (ideally only uses as much as needed, not a fixed amount)
 
 

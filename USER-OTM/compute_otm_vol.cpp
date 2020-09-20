@@ -26,22 +26,23 @@
 #include <mpi.h>
 #include <cstring>
 #include "atom.h"
-#include "update.h"
-#include "modify.h"
 #include "comm.h"
-#include "memory.h"
 #include "error.h"
+#include "memory.h"
+#include "modify.h"
+#include "update.h"
+
 
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-ComputeSMDVol::ComputeSMDVol(LAMMPS *lmp, int narg, char **arg) :
+ComputeOTMVol::ComputeOTMVol(LAMMPS *lmp, int narg, char **arg) :
                 Compute(lmp, narg, arg) {
         if (narg != 3)
-                error->all(FLERR, "Illegal compute smd/volume command");
+                error->all(FLERR, "Illegal compute otm/volume command");
         if (atom->vfrac_flag != 1)
-                error->all(FLERR, "compute smd/volume command requires atom_style with density (e.g. smd)");
+                error->all(FLERR, "compute otm/volume command requires atom_style with density (e.g. otm)");
 
         scalar_flag = 1;
         peratom_flag = 1;
@@ -53,25 +54,25 @@ ComputeSMDVol::ComputeSMDVol(LAMMPS *lmp, int narg, char **arg) :
 
 /* ---------------------------------------------------------------------- */
 
-ComputeSMDVol::~ComputeSMDVol() {
+ComputeOTMVol::~ComputeOTMVol() {
         memory->sfree(volVector);
 }
 
 /* ---------------------------------------------------------------------- */
 
-void ComputeSMDVol::init() {
+void ComputeOTMVol::init() {
 
         int count = 0;
         for (int i = 0; i < modify->ncompute; i++)
-                if (strcmp(modify->compute[i]->style, "smd/volume") == 0)
+                if (strcmp(modify->compute[i]->style, "otm/volume") == 0)
                         count++;
         if (count > 1 && comm->me == 0)
-                error->warning(FLERR, "More than one compute smd/volume");
+                error->warning(FLERR, "More than one compute otm/volume");
 }
 
 /* ---------------------------------------------------------------------- */
 
-void ComputeSMDVol::compute_peratom() {
+void ComputeOTMVol::compute_peratom() {
         invoked_peratom = update->ntimestep;
 
         // grow volVector array if necessary
@@ -98,7 +99,7 @@ void ComputeSMDVol::compute_peratom() {
 
 /* ---------------------------------------------------------------------- */
 
-double ComputeSMDVol::compute_scalar() {
+double ComputeOTMVol::compute_scalar() {
 
         invoked_scalar = update->ntimestep;
         double *vfrac = atom->vfrac;
@@ -124,7 +125,7 @@ double ComputeSMDVol::compute_scalar() {
  memory usage of local atom-based array
  ------------------------------------------------------------------------- */
 
-double ComputeSMDVol::memory_usage() {
+double ComputeOTMVol::memory_usage() {
         double bytes = nmax * sizeof(double);
         return bytes;
 }

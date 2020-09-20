@@ -81,28 +81,33 @@ class AtomVecOTM : public AtomVec {
   bigint memory_usage();
 
  private:
-  tagint *tag;
-  int *type,*mask;
   imageint *image;
-  double **x,**v,**f; // position, velocity, force vectors
-  double *radius,*rmass; 
+  double *radius; 
 
   tagint *molecule;
-  double *vfrac,**x0,*contact_radius, **smd_data_9, *e, *de, **vest;
-  double **tlsph_stress;
+  double *contact_radius, **smd_data_9, *e, *de, **vest;
   double *eff_plastic_strain;
   double *damage;
   double *eff_plastic_strain_rate;
 
-   // USER-OTM
-   int *npartner; // Number of nodal partners to mps
-   int **partner; // Order of partners
-   double **p; // Shape function evaluations
-   double **gradp; // Shape function derivatives
+  // USER-OTM
+  tagint *tag;
+  int *type,*mask;
+  double **x,**v,**f;
+  double *rmass;
 
-   double **def_grad; // Deformation Gradient tensor, F
-   double **def_incr; // Incremental Def. Grad. tensor, Fincr
-   double **def_rate; // Deformation rate tensor, Fdot
+  double *vfrac,**x0;
+
+  int *npartner; // Number of nodal partners to mps
+  int **partner; // Order of partners
+  double **p; // Shape function evaluations
+  double **gradp; // Shape function derivatives
+
+  double **def_grad; // Deformation Gradient tensor, F
+  double **def_incr; // Incremental Def. Grad. tensor, Fincr
+  double **def_rate; // Deformation rate tensor, Fdot
+
+  double **smd_stress; // Cauchy stress tensor 2D:(Sxx Sxy Syy)  3D:(Sxx Syy Szz Sxy Sxz Syz)
 
 };
 

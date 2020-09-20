@@ -25,21 +25,21 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(smd/vol,ComputeSMDVol)
+ComputeStyle(otm/vol,ComputeOTMVol)
 
 #else
 
-#ifndef LMP_COMPUTE_SMD_VOL_H
-#define LMP_COMPUTE_SMD_VOL_H
+#ifndef LMP_COMPUTE_OTM_VOL_H
+#define LMP_COMPUTE_OTM_VOL_H
 
 #include "compute.h"
 
 namespace LAMMPS_NS {
 
-class ComputeSMDVol : public Compute {
+class ComputeOTMVol : public Compute {
  public:
-  ComputeSMDVol(class LAMMPS *, int, char **);
-  ~ComputeSMDVol();
+  ComputeOTMVol(class LAMMPS *, int, char **);
+  ~ComputeOTMVol();
   void init();
   void compute_peratom();
   double compute_scalar();

@@ -57,10 +57,8 @@ class PairOTMLinearElastic : public Pair {
   void DefGrad2Cauchy(double *, double *, double, double, int, int); // converts F --> CauchyStress w/ linear elastic relationship
 
   int typeMP, typeND;
-  int n_sym; // number of unique elements in symmetric matrix
   int strain_measure; // 0 Lagrange, 1 Infinitesimal
   int stress_measure; // 0 plane strain, 1 plane stress
-  double **CauchyStress; // ordered as 11, 12, 13, 22, 23, 33 in 3d OR 11,12,22 in 2d
   double *detF;
   double hNom,hMin; // Nominal and minimum nodal spacing
   double dtCFL; // Minimum allowable dt based on CFL and elastic properties.

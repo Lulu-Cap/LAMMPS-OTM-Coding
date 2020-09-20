@@ -25,22 +25,23 @@
 #include "compute_otm_rho.h"
 #include <cstring>
 #include "atom.h"
-#include "update.h"
-#include "modify.h"
 #include "comm.h"
-#include "memory.h"
 #include "error.h"
+#include "memory.h"
+#include "modify.h"
+#include "update.h"
+
 
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-ComputeSMDRho::ComputeSMDRho(LAMMPS *lmp, int narg, char **arg) :
+ComputeOTMRho::ComputeOTMRho(LAMMPS *lmp, int narg, char **arg) :
                 Compute(lmp, narg, arg) {
         if (narg != 3)
-                error->all(FLERR, "Illegal compute smd/rho command");
+                error->all(FLERR, "Illegal compute otm/rho command");
         if (atom->vfrac_flag != 1)
-                error->all(FLERR, "compute smd/rho command requires atom_style with volume (e.g. smd)");
+                error->all(FLERR, "compute otm/rho command requires atom_style with volume (e.g. otm)");
 
         peratom_flag = 1;
         size_peratom_cols = 0;
@@ -51,25 +52,25 @@ ComputeSMDRho::ComputeSMDRho(LAMMPS *lmp, int narg, char **arg) :
 
 /* ---------------------------------------------------------------------- */
 
-ComputeSMDRho::~ComputeSMDRho() {
+ComputeOTMRho::~ComputeOTMRho() {
         memory->sfree(rhoVector);
 }
 
 /* ---------------------------------------------------------------------- */
 
-void ComputeSMDRho::init() {
+void ComputeOTMRho::init() {
 
         int count = 0;
         for (int i = 0; i < modify->ncompute; i++)
-                if (strcmp(modify->compute[i]->style, "smd/rho") == 0)
+                if (strcmp(modify->compute[i]->style, "otm/rho") == 0)
                         count++;
         if (count > 1 && comm->me == 0)
-                error->warning(FLERR, "More than one compute smd/rho");
+                error->warning(FLERR, "More than one compute otm/rho");
 }
 
 /* ---------------------------------------------------------------------- */
 
-void ComputeSMDRho::compute_peratom() {
+void ComputeOTMRho::compute_peratom() {
         invoked_peratom = update->ntimestep;
 
         // grow rhoVector array if necessary
@@ -100,7 +101,7 @@ void ComputeSMDRho::compute_peratom() {
  memory usage of local atom-based array
  ------------------------------------------------------------------------- */
 
-double ComputeSMDRho::memory_usage() {
+double ComputeOTMRho::memory_usage() {
         double bytes = nmax * sizeof(double);
         return bytes;
 }

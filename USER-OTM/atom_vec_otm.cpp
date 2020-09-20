@@ -136,7 +136,7 @@ void AtomVecOTM::grow(int n) {
   smd_data_9 = memory->grow(atom->smd_data_9, nmax, NMAT_FULL, "atom:defgrad_old");
   e = memory->grow(atom->e, nmax, "atom:e");
   vest = memory->grow(atom->vest, nmax, 3, "atom:vest");
-  tlsph_stress = memory->grow(atom->smd_stress, nmax, NMAT_SYMM, "atom:tlsph_stress");
+  smd_stress = memory->grow(atom->smd_stress, nmax, NMAT_SYMM, "atom:smd_stress");
   eff_plastic_strain = memory->grow(atom->eff_plastic_strain, nmax, "atom:eff_plastic_strain");
   eff_plastic_strain_rate = memory->grow(atom->eff_plastic_strain_rate, nmax, "atom:eff_plastic_strain_rate");
   damage = memory->grow(atom->damage, nmax, "atom:damage");
@@ -178,7 +178,7 @@ void AtomVecOTM::grow_reset() {
   smd_data_9 = atom->smd_data_9;
   e = atom->e;
   de = atom->de;
-  tlsph_stress = atom->smd_stress;
+  smd_stress = atom->smd_stress;
   eff_plastic_strain = atom->eff_plastic_strain;
   eff_plastic_strain_rate = atom->eff_plastic_strain_rate;
   damage = atom->damage;
@@ -230,7 +230,7 @@ void AtomVecOTM::copy(int i, int j, int delflag) {
   }
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    tlsph_stress[j][k] = tlsph_stress[i][k];
+    smd_stress[j][k] = smd_stress[i][k];
   }
 
   damage[j] = damage[i];
@@ -532,7 +532,7 @@ int AtomVecOTM::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
       } // 25
 
       for (int k = 0; k < NMAT_SYMM; k++) {
-        buf[m++] = tlsph_stress[j][k];
+        buf[m++] = smd_stress[j][k];
       } // 31
 
       buf[m++] = v[j][0];
@@ -579,7 +579,7 @@ int AtomVecOTM::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
         } // 26
 
         for (int k = 0; k < NMAT_SYMM; k++) {
-          buf[m++] = tlsph_stress[j][k];
+          buf[m++] = smd_stress[j][k];
         } // 32
 
         buf[m++] = v[j][0];
@@ -620,7 +620,7 @@ int AtomVecOTM::pack_border_vel(int n, int *list, double *buf, int pbc_flag, int
         } // 25
 
         for (int k = 0; k < NMAT_SYMM; k++) {
-          buf[m++] = tlsph_stress[j][k];
+          buf[m++] = smd_stress[j][k];
         } // 31
 
         if (mask[i] & deform_groupbit) {
@@ -676,7 +676,7 @@ int AtomVecOTM::pack_border_hybrid(int n, int *list, double *buf) {
     } // 20
 
     for (int k = 0; k < NMAT_SYMM; k++) {
-      buf[m++] = tlsph_stress[j][k];
+      buf[m++] = smd_stress[j][k];
     } // 26
 
   }
@@ -722,7 +722,7 @@ void AtomVecOTM::unpack_border_vel(int n, int first, double *buf) {
     } // 25
 
     for (int k = 0; k < NMAT_SYMM; k++) {
-      tlsph_stress[i][k] = buf[m++];
+      smd_stress[i][k] = buf[m++];
     } // 31
 
     v[i][0] = buf[m++];
@@ -762,7 +762,7 @@ int AtomVecOTM::unpack_border_hybrid(int n, int first, double *buf) {
     } // 20
 
     for (int k = 0; k < NMAT_SYMM; k++) {
-      tlsph_stress[i][k] = buf[m++];
+      smd_stress[i][k] = buf[m++];
     } // 26
   }
   return m;
@@ -802,7 +802,7 @@ int AtomVecOTM::pack_exchange(int i, double *buf) {
   } // 27
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    buf[m++] = tlsph_stress[i][k];
+    buf[m++] = smd_stress[i][k];
   } // 33
 
   buf[m++] = v[i][0];
@@ -874,7 +874,7 @@ int AtomVecOTM::unpack_exchange(double *buf) {
   } // 27
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    tlsph_stress[nlocal][k] = buf[m++];
+    smd_stress[nlocal][k] = buf[m++];
   } // 33
 
   v[nlocal][0] = buf[m++];
@@ -963,7 +963,7 @@ int AtomVecOTM::pack_restart(int i, double *buf) {
   } // 28
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    buf[m++] = tlsph_stress[i][k];
+    buf[m++] = smd_stress[i][k];
   } // 34
 
   buf[m++] = v[i][0];
@@ -1040,7 +1040,7 @@ int AtomVecOTM::unpack_restart(double *buf) {
   } // 28
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    tlsph_stress[nlocal][k] = buf[m++];
+    smd_stress[nlocal][k] = buf[m++];
   } // 34
 
   v[nlocal][0] = buf[m++];
@@ -1133,7 +1133,7 @@ void AtomVecOTM::create_atom(int itype, double *coord) {
   smd_data_9[nlocal][8] = 1.0; // zz
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    tlsph_stress[nlocal][k] = 0.0;
+    smd_stress[nlocal][k] = 0.0;
   }
 
   damage[nlocal] = 0.0;
@@ -1230,7 +1230,7 @@ void AtomVecOTM::data_atom(double *coord, imageint imagetmp, char **values) {
   }
 
   for (int k = 0; k < NMAT_SYMM; k++) {
-    tlsph_stress[nlocal][k] = 0.0;
+    smd_stress[nlocal][k] = 0.0;
   }
 
   smd_data_9[nlocal][0] = 1.0; // xx
@@ -1442,8 +1442,8 @@ bigint AtomVecOTM::memory_usage() {
 
   if (atom->memcheck("smd_data_9"))
     bytes += memory->usage(smd_data_9, nmax, NMAT_FULL);
-  if (atom->memcheck("tlsph_stress"))
-    bytes += memory->usage(tlsph_stress, nmax, NMAT_SYMM);
+  if (atom->memcheck("smd_stress"))
+    bytes += memory->usage(smd_stress, nmax, NMAT_SYMM);
 
   if (atom->memcheck("damage"))
     bytes += memory->usage(damage, nmax);

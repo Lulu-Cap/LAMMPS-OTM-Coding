@@ -25,7 +25,7 @@
 
 #ifdef COMPUTE_CLASS
 
-ComputeStyle(smd/rho,ComputeSMDRho)
+ComputeStyle(otm/rho,ComputeOTMRho)
 
 #else
 
@@ -36,10 +36,10 @@ ComputeStyle(smd/rho,ComputeSMDRho)
 
 namespace LAMMPS_NS {
 
-class ComputeSMDRho : public Compute {
+class ComputeOTMRho : public Compute {
  public:
-  ComputeSMDRho(class LAMMPS *, int, char **);
-  ~ComputeSMDRho();
+  ComputeOTMRho(class LAMMPS *, int, char **);
+  ~ComputeOTMRho();
   void init();
   void compute_peratom();
   double memory_usage();

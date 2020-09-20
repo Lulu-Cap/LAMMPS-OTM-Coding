@@ -63,6 +63,8 @@ TO-DO:
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
+#define NMAT_FULL 9
+#define NMAT_SYMM 6
 #define MAX(A,B) ((A) > (B) ? (A) : (B))
 
 /* ---------------------------------------------------------------------- */
@@ -72,7 +74,6 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
   writedata = 1; // Write coeffs to data file
   centroidstressflag = 4; // centroid/stress/atom compute not implemented
 
-  CauchyStress = NULL;
   detF = NULL;
   strain_measure = stress_measure = -1;
 
@@ -84,14 +85,13 @@ PairOTMLinearElastic::PairOTMLinearElastic(LAMMPS *lmp) : Pair(lmp)
 
   // Grow and initialize arrays
   int nmax = atom->nmax;
-  int dim = domain->dimension;
-  n_sym = (dim == 2) ? 3 : 6;
 
   grow_arrays(atom->nmax);
+  double **Cauchy = atom->smd_stress;
   for (int ii = 0; ii < nmax; ii++) {
     detF[ii] = 1.0;
-    for (int jj = 0; jj < n_sym; jj++){
-      CauchyStress[ii][jj] = 0.0;
+    for (int jj = 0; jj < NMAT_SYMM; jj++){
+      Cauchy[ii][jj] = 0.0;
     }
   }
 
@@ -105,7 +105,6 @@ PairOTMLinearElastic::~PairOTMLinearElastic()
     memory->destroy(setflag);
     memory->destroy(cutsq);
 
-    memory->destroy(CauchyStress);
     memory->destroy(detF);
 
     memory->destroy(E);
@@ -152,13 +151,15 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
   int *npartner = atom->npartner;
   int **partner = atom->partner;
 
+  grow_arrays(atom->nmax);
+
+  double **Cauchy = atom->smd_stress;
+
   //ev_init(eflag,vflag); 
 
   inum = list->inum;
   ilist = list->ilist;
-
-  grow_arrays(atom->nmax);
-
+  
   // Assign forces to each node
   for (ii = 0; ii < inum; ii++) { // mp loop
     i = ilist[ii];
@@ -175,12 +176,11 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
       for (jj = 0; jj < jnum; jj++) { // node loop
         j = jlist[jj];
         jtype = type[j];
-        j &= NEIGHMASK;
         if (jtype != typeND) error->all(FLERR, "Partner list contains a particle which is not a node!\n");
 
         // Convert F to Cauchy Stress 
         if (Stress_flag == 0) {
-          DefGrad2Cauchy(F[i],CauchyStress[i],E[itype][jtype],nu[itype][jtype],strain_measure,stress_measure); 
+          DefGrad2Cauchy(F[i],Cauchy[i],E[itype][jtype],nu[itype][jtype],strain_measure,stress_measure); 
           Stress_flag = 1; // Only calculate stress once per mp
         }
 
@@ -188,21 +188,21 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
         // WvSpeed = ( E[itype][jtype] * (1-nu[itype][jtype]) ) / (dens * (1+nu[itype][jtype]) * (1-2*nu[itype][jtype]) ); // DEBUG: something is really fucked up here. Not giving the right answer at all.
         // WvSpeed = pow(WvSpeed,0.5);
 
-        // Stress contribution to force: f += -volume * dot(CauchyStress,gradp) 
+        // Stress contribution to force: f += -volume * dot(Cauchy,gradp) 
         if (dim == 2) {
-          f[j][0] -= volume[i] * ( gradp[i][dim*jj]*CauchyStress[i][0] + gradp[i][dim*jj+1]*CauchyStress[i][1] );
-          f[j][1] -= volume[i] * ( gradp[i][dim*jj]*CauchyStress[i][1] + gradp[i][dim*jj+1]*CauchyStress[i][2] );
+          f[j][0] -= volume[i] * ( gradp[i][dim*jj]*Cauchy[i][0] + gradp[i][dim*jj+1]*Cauchy[i][3] );
+          f[j][1] -= volume[i] * ( gradp[i][dim*jj]*Cauchy[i][3] + gradp[i][dim*jj+1]*Cauchy[i][1] );
         }
         else if (dim == 3) {
-          f[j][0] -= volume[i] * ( gradp[i][dim*jj]*CauchyStress[i][0] 
-                                 + gradp[i][dim*jj+1]*CauchyStress[i][1] 
-                                 + gradp[i][dim*jj+2]*CauchyStress[i][2] );
-          f[j][1] -= volume[i] * ( gradp[i][dim*jj]*CauchyStress[i][1] 
-                                 + gradp[i][dim*jj+1]*CauchyStress[i][3] 
-                                 + gradp[i][dim*jj+2]*CauchyStress[i][4] );
-          f[j][2] -= volume[i] * ( gradp[i][dim*jj]*CauchyStress[i][2] 
-                                 + gradp[i][dim*jj+1]*CauchyStress[i][4] 
-                                 + gradp[i][dim*jj+2]*CauchyStress[i][5] );
+          f[j][0] -= volume[i] * ( gradp[i][dim*jj]*Cauchy[i][0] 
+                                 + gradp[i][dim*jj+1]*Cauchy[i][3] 
+                                 + gradp[i][dim*jj+2]*Cauchy[i][4] );
+          f[j][1] -= volume[i] * ( gradp[i][dim*jj]*Cauchy[i][3] 
+                                 + gradp[i][dim*jj+1]*Cauchy[i][1] 
+                                 + gradp[i][dim*jj+2]*Cauchy[i][5] );
+          f[j][2] -= volume[i] * ( gradp[i][dim*jj]*Cauchy[i][4] 
+                                 + gradp[i][dim*jj+1]*Cauchy[i][5] 
+                                 + gradp[i][dim*jj+2]*Cauchy[i][2] );
         }
 
         // Body force contribution
@@ -521,8 +521,7 @@ double PairOTMLinearElastic::single(int /*i*/, int /*j*/, int itype, int jtype, 
 void *PairOTMLinearElastic::extract(const char *str, int &dim)
 {
   dim = 2;
-  if (strcmp(str,"CauchyStress") == 0) return (void *) CauchyStress;
-  else if (strcmp(str,"detF") == 0) return (void *) detF;
+  if (strcmp(str,"detF") == 0) return (void *) detF;
   else if (strcmp(str,"smd/tlsph/dtCFL_ptr") == 0) return (void *) &dtCFL; //string format maintains compatibility with fix_otm_adjust_dt.h/.cpp for now
   else if (strcmp(str,"otm/hMin") == 0) return (void *) &hMin;
 
@@ -535,7 +534,7 @@ void *PairOTMLinearElastic::extract(const char *str, int &dim)
 // TODO: grow more variables as needed.
 void PairOTMLinearElastic::grow_arrays(int nmax)
 {
-  memory->grow(CauchyStress, nmax, n_sym, "otm_pair_linear_elastic:CauchyStress");
+  memory->grow(atom->smd_stress, nmax, NMAT_SYMM, "otm_pair_linear_elastic:Cauchy");
   memory->grow(detF, nmax, "otm_pair_linear_elastic:detF");
 }
 
@@ -582,15 +581,21 @@ void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, d
     // Make stress matrix
     if (stress_type == 0) { // Plane strain
       double C = E / ((1+nu)*(1-2*nu));
-      Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] ); // 11
-      Cauchy[1] = C * (1 - 2*nu) * strain[0][1]; // 12
-      Cauchy[2] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] ); // 22
+      Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] ); // Sxx
+      Cauchy[1] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] ); // Syy
+      Cauchy[2] = E * nu * (strain[0][0] + strain[1][1]); // Szz
+      Cauchy[3] = C * (1 - 2*nu) * strain[0][1]; // Sxy
+      Cauchy[4] = 0.0; // Sxz
+      Cauchy[5] = 0.0; // Syz
     }
     else if (strain_type == 1) { // Plane stress
       double C = E / (1 - nu*nu);
-      Cauchy[0] = C * ( strain[0][0] + nu*strain[1][1] ); // 11
-      Cauchy[1] = C * (1 - 2*nu) * strain[0][1]; // 12
-      Cauchy[2] = C * ( nu*strain[0][0] + strain[1][1] ); // 22
+      Cauchy[0] = C * ( strain[0][0] + nu*strain[1][1] ); // Sxx
+      Cauchy[1] = C * ( nu*strain[0][0] + strain[1][1] ); // Syy
+      Cauchy[2] = 0.0; // Szz - Really could be any value though. Make it an optional input (TO DO/debug)
+      Cauchy[3] = C * (1 - 2*nu) * strain[0][1]; // Sxy
+      Cauchy[4] = 0.0; // Sxz
+      Cauchy[5] = 0.0; // Syz
     }
     else { // simply ignore 3D dimension. No physical meaning
       error->all(FLERR,"Stress type must be specified as plane strain or plane stress for 2D simulations "
@@ -629,13 +634,12 @@ void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, d
 
     // Make stress matrix
     double C = E / ((1+nu)*(1-2*nu));
-    Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] + nu*strain[2][2]); // 11;
-    Cauchy[1] = C * (1-2*nu) * strain[0][1]; // 12
-    Cauchy[2] = C * (1-2*nu) * strain[0][2]; // 13
-    Cauchy[3] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] + nu*strain[2][2]); // 22
-    Cauchy[4] = C * (1-2*nu) * strain[1][2]; // 23
-    Cauchy[5] = C * ( nu*strain[0][0] + nu*strain[1][1] + (1-nu)*strain[2][2]); // 33
-    
+    Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] + nu*strain[2][2]); // Sxx
+    Cauchy[1] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] + nu*strain[2][2]); // Syy
+    Cauchy[2] = C * ( nu*strain[0][0] + nu*strain[1][1] + (1-nu)*strain[2][2]); // Szz
+    Cauchy[3] = C * (1-2*nu) * strain[0][1]; // Sxy
+    Cauchy[4] = C * (1-2*nu) * strain[0][2]; // Sxz
+    Cauchy[5] = C * (1-2*nu) * strain[1][2]; // Syz
   }
 
   return;

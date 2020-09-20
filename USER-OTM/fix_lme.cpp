@@ -256,6 +256,7 @@ void FixLME::pre_force(int vflag)
 
   double **x = atom->x;
   double *m = atom->rmass;
+  double *vol = atom->vfrac;
   int *mask = atom->mask; 
   int *type = atom->type;
   tagint *tag = atom->tag; 
@@ -335,6 +336,7 @@ void FixLME::pre_force(int vflag)
               hMin = pow(rsq,0.5); // assign hMin
             if (jj == 0) {
               m[i] = 0.0;
+              vol[i] = 0.0;
               npartner[i] = -1;
               partner[i] = NULL;
             }
@@ -525,15 +527,19 @@ void FixLME::pre_force(int vflag)
         // Test if max_iter exceeded or convergence otherwise failed
         {
         if (iter > max_iter) {
-          printf("\n\nLME Failed on particle i=%i\n\n",i);
+          printf("\n\nLME Failed on particle i=%i on timestep %lli. Its neighbouring nodes were:\n",i,ntimestep);
           for (jj = 0; jj < jnum; jj++) 
             printf("%i ",jlist[jj]);
+          printf("\n\n");
           error->all(FLERR, "Maximum iterations reached without LME convergence to specified tolerance\n");
         }
         if ((isnormal(lambda1[0]) == 0 && lambda1[0] != 0) || 
             (isnormal(lambda1[1]) == 0 && lambda1[1] != 0) ||
             (isnormal(lambda1[2]) == 0 && lambda1[2] != 0)) {
-          printf("\nLME Failed on particle i=%i on iteration %lli\n",i,ntimestep);
+          printf("\nLME Failed on particle i=%i on iteration %lli. Its neighbouring nodes were:\n",i,ntimestep);
+          for (jj = 0; jj < jnum; jj++) 
+            printf("%i ",jlist[jj]);
+          printf("\n\n");
           error->all(FLERR, "Lagrange multipliers reached undefined value (NaN). LME failed to converge\n");
         }
         }
@@ -558,8 +564,9 @@ void FixLME::pre_force(int vflag)
           gradp[i][dim*jj+2] = -p[i][jj]/(h*h) * ( invH[2][0]*dx[0] + invH[2][1]*dx[1] + invH[2][2]*dx[2] );
         }
 
-        // Lumped nodal masses
+        // Lumped nodal masses and volumes
         m[j] += m[i]*p[i][jj];
+        vol[j] += vol[i]*p[i][jj];
       }
     } // mp test
   } // mp loop

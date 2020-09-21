@@ -57,18 +57,18 @@ neigh_modify    every 10 delay 0 check yes # re-build neighbor list every 10 ste
 ####################################################################################################
 # READ GEOMETRY
 ####################################################################################################
-read_data   aluminum_strip_pull_moreMPs.data # nds are type 1, mps are type 2
+read_data   aluminum_strip_pull.data # nds are type 1, mps are type 2
   orthogonal box = (-10.1 -10.1 -0.5) to (10.1 10.1 0.5)
   1 by 1 by 1 MPI processor grid
   reading atoms ...
-  3641 atoms
+  1241 atoms
   reading velocities ...
-  3641 velocities
-  read_data CPU = 0.219413 secs
+  1241 velocities
+  read_data CPU = 0.00480199 secs
 group tlsph type 1 # nds
 441 atoms in group tlsph
 group mp type 2 # mps
-3200 atoms in group mp
+800 atoms in group mp
 
 variable	 	l0 equal 1.0 # lattice spacing for creating particles
 # lattice		 	sq ${l0} # Square lattice with above spacing
@@ -98,20 +98,19 @@ neighbor        2.01 bin
 ####################################################################################################
 # DEFINE HOURGLASS ERROR CORRECTION
 ####################################################################################################
-variable hg equal 1000
-fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
-fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps 1000
+variable hg equal 3000 #3000
+# fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
 ####################################################################################################
 # DEFINE VELOCITY BOUNDARY CONDITIONS
 ####################################################################################################
 variable 	vel0 equal 0.02 # pull velocity
 # region    box block -10 10 -10 10 -0.1 0.1 units box # probably cut out
-region 		top block EDGE EDGE 9.0 EDGE EDGE EDGE units box
+region 		top block EDGE EDGE 9.1 EDGE EDGE EDGE units box
 region 		bot block EDGE EDGE EDGE -9.1 EDGE EDGE units box
 group           top region top
-202 atoms in group top
+61 atoms in group top
 group           bot region bot
-181 atoms in group bot
+61 atoms in group bot
 variable        vel_up equal ${vel0}*(1.0-exp(-0.01*time))
 variable        vel_up equal 0.02*(1.0-exp(-0.01*time))
 variable        vel_down equal -v_vel_up
@@ -167,10 +166,23 @@ fix             integration all otm/integrate MP 2 ND 1
 # compute 	nn all smd/tlsph/num/neighs # number of neighbors for each particle
 # compute         shape all smd/tlsph/shape
 # compute 	damage all smd/damage
-# dump 		dump_id all custom 100 dump.LAMMPS id type x y z # 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p # 			c_E[1] c_E[2] c_E[3] c_E[4] c_E[5] c_E[6] # 			c_shape[1] c_shape[2] c_shape[3] c_shape[4] c_shape[5] c_shape[6] c_shape[7] # 			c_D[1] c_D[2] c_D[4] c_damage radius c_epsdot #                         vx vy vz c_dt_atom
+
+# compute F all otm/defgrad
+# compute Fdot all otm/defgradrate
+# compute E all otm/strain
+# compute rho all smd/rho
+# compute vol all smd/vol
+# compute N all otm/npartner
+
+# dump 		dump_id all custom 100 dump.LAMMPS id type x y z # 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p 			# c_E[1] c_E[2] c_E[3] c_E[4] c_E[5] c_E[6] # 			c_shape[1] c_shape[2] c_shape[3] c_shape[4] c_shape[5] c_shape[6] c_shape[7] # 			c_D[1] c_D[2] c_D[4] c_damage radius c_epsdot #                         vx vy vz c_dt_atom
 # dump_modify 	dump_id first yes
 
-dump dump_id all atom 25 dump_LE.LAMMPS
+# dump      dump_id all custom 100 dump.LAMMPS id type x y z #           c_N c_rho c_vol vx vy vz #           c_E[1] c_E[2] c_E[3] #           c_Fdot[1] c_Fdot[2] c_Fdot[3] c_Fdot[4] #           c_F[1] c_F[2] c_F[3] c_F[4] c_F[5]
+
+
+# dump_modify   dump_id first yes
+
+dump dump_id all atom 100 dump_LE.LAMMPS
 
 
 
@@ -192,38 +204,63 @@ dump dump_id all atom 25 dump_LE.LAMMPS
 # RUN SIMULATION
 ####################################################################################################
 #fix 2 all enforce2d
-run 26000
-WARNING: One or more atoms are time integrated more than once (../modify.cpp:289)
+run 5#21500
 Neighbor list info ...
   update every 10 steps, delay 0 steps, check yes
   max neighbors/atom: 2000, page size: 100000
   master list distance cutoff = 6.03
   ghost atom cutoff = 6.03
   binsize = 3.015, bins = 7 7 1
-  4 neighbor lists, perpetual/occasional/extra = 4 0 0
+  3 neighbor lists, perpetual/occasional/extra = 3 0 0
   (1) pair otm/elastic/linear, perpetual
       attributes: full, newton off
       pair build: full/bin/atomonly
       stencil: full/bin/2d
       bin: standard
-  (2) fix otm/hourglass_correction, perpetual, copy from (1)
+  (2) fix otm/lme/shape, perpetual, copy from (1)
       attributes: full, newton off
       pair build: copy
       stencil: none
       bin: none
-  (3) fix otm/lme/shape, perpetual, copy from (1)
+  (3) fix otm/integrate, perpetual, copy from (1)
       attributes: full, newton off
       pair build: copy
       stencil: none
       bin: none
-  (4) fix otm/integrate, perpetual, copy from (1)
-      attributes: full, newton off
-      pair build: copy
-      stencil: none
-      bin: none
-Per MPI rank memory allocation (min/avg/max) = 111.2 | 111.2 | 111.2 Mbytes
+Per MPI rank memory allocation (min/avg/max) = 71.42 | 71.42 | 71.42 Mbytes
 Step Temp E_pair E_mol TotEng Press Volume 
-       0            0            0            0            0            0    404.09121 
-ERROR: Maximum iterations reached without LME convergence to specified tolerance
- (../fix_lme.cpp:531)
-Last command: run 26000
+       0            0            0            0            0 -0.0024746888    404.09121 
+       5 4.7474281e+11            0            0 8.1276278e-09 -0.0024746888    404.09121 
+Loop time of 0.0287421 on 1 procs for 5 steps with 1241 atoms
+
+98.4% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.001061   | 0.001061   | 0.001061   |   0.0 |  3.69
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 2.1458e-06 | 2.1458e-06 | 2.1458e-06 |   0.0 |  0.01
+Output  | 1.2159e-05 | 1.2159e-05 | 1.2159e-05 |   0.0 |  0.04
+Modify  | 0.027647   | 0.027647   | 0.027647   |   0.0 | 96.19
+Other   |            | 2.003e-05  |            |       |  0.07
+
+Nlocal:    1241 ave 1241 max 1241 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+FullNghs:  324808 ave 324808 max 324808 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 324808
+Ave neighs/atom = 261.731
+Neighbor list builds = 0
+Dangerous builds = 0
+
+
+
+# For 1x mp, gamma 4.0, hg 3000, iter 21500
+# For 1x mp, gamma 1.2, hg 1000, iter 23700
+Total wall time: 0:00:00

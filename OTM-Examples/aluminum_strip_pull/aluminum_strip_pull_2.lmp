@@ -86,7 +86,7 @@ neighbor        ${skin} bin
 # DEFINE HOURGLASS ERROR CORRECTION
 ####################################################################################################
 variable hg equal 3000 #3000
-fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
+# fix      Hg_fix all otm/hourglass_correction MP 2 ND 1 eps ${hg}
 ####################################################################################################
 # DEFINE VELOCITY BOUNDARY CONDITIONS
 ####################################################################################################
@@ -149,12 +149,12 @@ fix             integration all otm/integrate MP 2 ND 1
 # compute         shape all smd/tlsph/shape
 # compute 	damage all smd/damage
 
-compute F all otm/defgrad
-compute Fdot all otm/defgradrate
-compute E all otm/strain
-compute rho all smd/rho
-compute vol all smd/vol
-compute N all otm/npartner
+# compute F all otm/defgrad
+# compute Fdot all otm/defgradrate
+# compute E all otm/strain
+# compute rho all smd/rho
+# compute vol all smd/vol
+# compute N all otm/npartner
 
 # dump 		dump_id all custom 100 dump.LAMMPS id type x y z &
 # 			c_S[1] c_S[2] c_S[3] c_S[4] c_S[5] c_S[6] c_S[7] c_nn c_p &
@@ -164,16 +164,16 @@ compute N all otm/npartner
 #                         vx vy vz c_dt_atom
 # dump_modify 	dump_id first yes
 
-dump      dump_id all custom 100 dump.LAMMPS id type x y z &
-          c_N c_rho c_vol vx vy vz &
-          c_E[1] c_E[2] c_E[3] &
-          c_Fdot[1] c_Fdot[2] c_Fdot[3] c_Fdot[4] &
-          c_F[1] c_F[2] c_F[3] c_F[4] c_F[5]
+# dump      dump_id all custom 100 dump.LAMMPS id type x y z &
+#           c_N c_rho c_vol vx vy vz &
+#           c_E[1] c_E[2] c_E[3] &
+#           c_Fdot[1] c_Fdot[2] c_Fdot[3] c_Fdot[4] &
+#           c_F[1] c_F[2] c_F[3] c_F[4] c_F[5]
           
 
-dump_modify   dump_id first yes
+# dump_modify   dump_id first yes
 
-# dump dump_id all atom 100 dump_LE.LAMMPS
+dump dump_id all atom 100 dump_LE.LAMMPS
 
 
 
@@ -195,7 +195,7 @@ dump_modify   dump_id first yes
 # RUN SIMULATION
 ####################################################################################################
 #fix 2 all enforce2d
-run 21500
+run 5#21500
 
 
 

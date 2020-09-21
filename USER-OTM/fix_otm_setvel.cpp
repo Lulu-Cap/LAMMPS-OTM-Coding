@@ -132,7 +132,6 @@ FixOTMSetVel::~FixOTMSetVel() {
 
 int FixOTMSetVel::setmask() {
   int mask = 0;
-  //mask |= INITIAL_INTEGRATE;
   mask |= POST_FORCE;
   return mask;
 }

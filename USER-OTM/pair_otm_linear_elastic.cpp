@@ -230,6 +230,29 @@ void PairOTMLinearElastic::compute(int eflag, int vflag)
     } // mp test
   } // mp loop
   
+  // // DEBUG
+  // double **S = Cauchy;
+  // double **Fincr = atom->def_incr;
+  // printf("\ntimestep = %lli\n",update->ntimestep);
+  // printf("p = ");
+  // for (int k = 0; k < npartner[16]; k++) {
+  //   printf("(%i %.13e)\n",partner[16][k],p[16][k]);
+  // }
+  // printf("\ngradp = ");
+  // for (int k = 0; k < npartner[16]; k++) {
+  //   printf("(%.13e %.13e %.13e)\n",gradp[16][2*k],gradp[16][2*k+1],0.0);
+  // }
+  // printf("\nFincr = |%.13e %.13e %.13e|\n"
+  //        "          |%.13e %.13e %.13e|\n"
+  //        "          |%.13e %.13e %.13e|\n",Fincr[16][0],Fincr[16][1],0.0,Fincr[16][2],Fincr[16][3],0.0,0.0,0.0,1.0);
+  // printf("F = |%.13e %.13e %.13e|\n"
+  //        "    |%.13e %.13e %.13e|\n"
+  //        "    |%.13e %.13e %.13e|\n",F[16][0],F[16][1],0.0,F[16][2],F[16][3],0.0,0.0,0.0,1.0);
+  // printf("S = |%.13e %.13e %.13e|\n"
+  //        "    |%.13e %.13e %.13e|\n"
+  //        "    |%.13e %.13e %.13e|\n",S[16][0],S[16][3],S[16][4],S[16][3],S[16][1],S[16][5],S[16][4],S[16][5],S[16][2]);
+  // printf("f[0][*] = [%.13e %.13e %.13e]\n\n\n\n",f[0][0],f[0][1],f[0][2]);
+
 }
 
 /* ----------------------------------------------------------------------
@@ -583,7 +606,7 @@ void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, d
       double C = E / ((1+nu)*(1-2*nu));
       Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] ); // Sxx
       Cauchy[1] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] ); // Syy
-      Cauchy[2] = E * nu * (strain[0][0] + strain[1][1]); // Szz
+      Cauchy[2] = C * nu * (strain[0][0] + strain[1][1]); // Szz
       Cauchy[3] = C * (1 - 2*nu) * strain[0][1]; // Sxy
       Cauchy[4] = 0.0; // Sxz
       Cauchy[5] = 0.0; // Syz
@@ -634,9 +657,9 @@ void PairOTMLinearElastic::DefGrad2Cauchy(double *F, double *Cauchy, double E, d
 
     // Make stress matrix
     double C = E / ((1+nu)*(1-2*nu));
-    Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] + nu*strain[2][2]); // Sxx
-    Cauchy[1] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] + nu*strain[2][2]); // Syy
-    Cauchy[2] = C * ( nu*strain[0][0] + nu*strain[1][1] + (1-nu)*strain[2][2]); // Szz
+    Cauchy[0] = C * ( (1-nu)*strain[0][0] + nu*strain[1][1] + nu*strain[2][2] ); // Sxx
+    Cauchy[1] = C * ( nu*strain[0][0] + (1-nu)*strain[1][1] + nu*strain[2][2] ); // Syy
+    Cauchy[2] = C * ( nu*strain[0][0] + nu*strain[1][1] + (1-nu)*strain[2][2] ); // Szz
     Cauchy[3] = C * (1-2*nu) * strain[0][1]; // Sxy
     Cauchy[4] = C * (1-2*nu) * strain[0][2]; // Sxz
     Cauchy[5] = C * (1-2*nu) * strain[1][2]; // Syz

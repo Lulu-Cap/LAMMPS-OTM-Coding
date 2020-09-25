@@ -109,6 +109,7 @@ void ComputeOTMCauchyStress::compute_peratom()
             3.0 * ( Cauchy[i][3] * Cauchy[i][3] + 
                     Cauchy[i][4] * Cauchy[i][4] + 
                     Cauchy[i][5] * Cauchy[i][5] );
+      Svm = pow(Svm,0.5);
       CauchyStressVector[i][6] = Svm; // Von Mises Equivalent stress, Svm
     }
     else {

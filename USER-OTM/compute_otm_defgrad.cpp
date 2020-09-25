@@ -156,7 +156,7 @@ double ComputeOTMDefgrad::memory_usage()
 double ComputeOTMDefgrad::determinant(double *def_grad) 
 {
   int dim = domain->dimension;
-  int det;
+  double det;
 
   if (dim == 2) {
     double F[2][2] = { {def_grad[0],def_grad[1]},
